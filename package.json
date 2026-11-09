@@ -1,6 +1,6 @@
 {
   "name": "spectater",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Review OpenSpec changes in your browser and send selected-text feedback to your coding agent",
   "keywords": [
     "openspec",

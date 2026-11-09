@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/morhaf-ko/spectater/compare/spectater-v0.2.0...spectater-v0.2.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* re-read the change when the agent replies ([#7](https://github.com/morhaf-ko/spectater/issues/7)) ([5966a55](https://github.com/morhaf-ko/spectater/commit/5966a55b09f54ef5d4aad6717db7f21652beaff9))
+
 ## [0.2.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.1.0...spectater-v0.2.0) (2026-11-09)
 
 
