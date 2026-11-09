@@ -36,7 +36,7 @@ context: |
   After you draft or revise a change's proposal, design, specs or tasks while planning (not while applying or archiving), open it for review with `npx -y spectater open <change>` and follow `npx -y spectater workflow`. No browser is needed: spectater prints a review URL for the user.
 ```
 
-If your project doesn't use OpenSpec's workflows, put the same sentence in `AGENTS.md` or `CLAUDE.md` instead. `npx -y spectater` always runs the latest release; to pin a version for everyone who shares the config, install it (`npm install -g spectater@<version>`) and write `spectater` instead.
+If your project doesn't use OpenSpec's workflows, put the same sentence in `AGENTS.md` or `CLAUDE.md` instead. `npx -y spectater` always runs the latest release; to pin the version for everyone who shares the config, write `npx -y spectater@<version>` instead.
 
 ## How it works
 
