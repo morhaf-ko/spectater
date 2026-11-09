@@ -27,7 +27,7 @@ The system SHALL persist an ended review state and require explicit operator res
 
 ### Requirement: Correctable undelivered feedback
 
-The system SHALL allow cancellation and editing of a submitted batch only before durable delivery handoff. Delivery claims and queue changes MUST serialize through the owning writer. Editing MUST pause delivery until explicit replacement submission. Cancelled, editing and superseded batches MUST be skipped by cursor delivery while their original contents remain available as explicit historical exports. Claimed batches MUST NOT be presented as cancellable or interrupted.
+The system SHALL allow cancellation and editing of a submitted batch only before durable delivery handoff. Delivery claims and queue changes MUST serialize through the owning writer. Editing MUST pause delivery until explicit replacement submission. Cancelled, editing and superseded batches MUST be skipped by server delivery while their original contents remain available as explicit historical exports. Claimed batches MUST NOT be presented as cancellable or interrupted.
 
 #### Scenario: Cancel races with delivery
 
