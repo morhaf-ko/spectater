@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!skills/**/SKILL.md"]
+    "includes": ["**", "!skills/**/SKILL.md", "!CHANGELOG.md"]
   },
   "formatter": {
     "enabled": true,
