@@ -1,11 +1,16 @@
 # Security
 
-SpecTater is a local tool. Verified platforms and limits are documented in README.md.
+Report vulnerabilities privately through [GitHub security advisories](https://github.com/morhaf-ko/spectater/security/advisories/new). Do not open a public issue, and do not include private review content or review URLs.
 
-Do not disclose vulnerabilities, secrets or private artifact content in a public issue. Use GitHub's private vulnerability reporting for this repository when available. Otherwise contact the maintainer privately through the contact information on their GitHub profile before sharing technical details.
+## Model
 
-The implementation runs locally on loopback and serves only the selected change manifest. A per-process capability authorizes review requests; Host/Origin checks and CSP restrict browser access. Raw HTML remains escaped, external images do not load, and the reader never writes canonical Markdown. These boundaries do not isolate the process from local users who can modify it or its files.
+SpecTater is a local tool for one user.
 
-Review snapshots may contain private source. Storage is owner-only outside the repository, remains until explicit removal, and is never uploaded by SpecTater. Keep capability URLs and review-state files private. Do not commit state, browser profiles or exported private feedback. File, request and state size limits fail visibly; no automatic retention cleanup runs.
+- The server binds to `127.0.0.1`. Every data request needs the random token in the review URL. Requests with a foreign `Host` or `Origin` are refused, and browser mutations require same-origin JSON.
+- Agent commands read the URL from an owner-only (`0600`) server record in the state directory.
+- Markdown renders without raw HTML, scripts, remote images or relative links. A restrictive Content Security Policy is set. SpecTater never writes to your Markdown.
+- Native OpenSpec selects the files to serve. Paths that escape the change, symlinks out of it and non-regular files are refused. Reads are size-limited.
+- Review state is stored owner-only outside Git repositories, written atomically, and protected by a writer lock. Corrupt state is reported, never replaced.
+- Diffs run `git diff --no-index` on private temporary copies with external diff drivers and textconv disabled, a 3-second limit and 256 KiB of output.
 
-Contract and browser tests exercise filesystem escape, active Markdown, foreign requests, bounded native reads, queue/lifecycle races and persistence failures. See [the security pass](docs/security-review.md) for the source-review scope and the independent release-review finding. Automated tests do not replace review.
+Other processes running as the same user can read the state directory and server record; SpecTater does not defend against them. Review state keeps copies of your Markdown until you delete it.

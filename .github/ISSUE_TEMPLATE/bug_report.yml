@@ -1,0 +1,29 @@
+name: Bug report
+description: Something in SpecTater does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran or clicked, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Command output
+      description: The JSON or error output. Remove review URLs; they contain a private token.
+      render: text
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `spectater --version`, `openspec --version` and `node --version`, and your OS.
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Coding agent
+      description: For example Claude Code, Codex, OpenCode or Copilot CLI, with its version.
