@@ -27,10 +27,72 @@ export async function native(args, cwd) {
     });
     return stdout;
   } catch (error) {
-    throw new Error(
-      `OpenSpec failed: ${error.stderr?.trim() || error.stdout?.trim() || error.message}`,
-    );
+    throw diagnostic(error);
   }
+}
+
+// Prefer OpenSpec's own structured diagnostics (`status[].message`) over raw output.
+function diagnostic(error) {
+  if (error.code === 'ENOENT')
+    return Object.assign(
+      new Error(
+        'OpenSpec CLI not found. Install it with `npm install -g @fission-ai/openspec` (1.15 or newer), then try again.',
+      ),
+      { diagnostic: true },
+    );
+  try {
+    const messages = JSON.parse(error.stdout)
+      .status.filter((item) => item?.severity === 'error' && typeof item.message === 'string')
+      .map((item) => item.message);
+    if (messages.length) return Object.assign(new Error(messages.join(' ')), { diagnostic: true });
+  } catch {
+    /* Not structured output; report it verbatim below. */
+  }
+  return new Error(
+    `OpenSpec failed: ${error.stderr?.trim() || error.stdout?.trim() || error.message}`,
+  );
+}
+
+async function session({ project, store }, run) {
+  const cwd = await realpath(project);
+  const version = (await run(['--version'], cwd)).trim();
+  const [major, minor] = version.split('.').map(Number);
+  if (!/^\d+\.\d+\.\d+/.test(version) || major < 1 || (major === 1 && minor < 15))
+    throw new Error(`OpenSpec ${version} is not supported. Install OpenSpec 1.15.0 or newer.`);
+  const selector = store ? ['--store', store] : [];
+  const json = async (args) => {
+    try {
+      return JSON.parse(await run([...args, ...selector, '--json'], cwd));
+    } catch (error) {
+      if (error.diagnostic) throw error;
+      throw new Error(`OpenSpec JSON/discovery error: ${error.message}`);
+    }
+  };
+  // Every caller gets the same root selection rules, including the global-default refusal.
+  const context = await json(['context']);
+  if (
+    !context.root?.path ||
+    !['nearest', 'declared', 'store', 'global_default'].includes(context.root.source)
+  )
+    throw new Error('Unsupported OpenSpec root contract.');
+  if (context.root.source === 'global_default' && !store)
+    throw new Error('Global default refused. Select an explicit --store id.');
+  return { json, context };
+}
+
+const changeNames = (list) =>
+  Array.isArray(list.changes) ? list.changes.map((item) => item.name) : [];
+
+export function missingChange(change, names) {
+  if (!names.length)
+    return `No active OpenSpec changes${change ? ` (looked for ${change})` : ''}. Draft one first, for example with /opsx:propose or \`openspec new change <name>\`.`;
+  return `${change ? `Change not found: ${change}.` : 'Choose a change: spectater open <change>.'} Active changes: ${names.join(', ')}.`;
+}
+
+/** Names of the active changes in the selected OpenSpec root. */
+export async function listChanges(options, run = native) {
+  const { json } = await session(options, run);
+  return changeNames(await json(['list']));
 }
 
 export function createDiscovery() {
@@ -45,32 +107,12 @@ export function createDiscovery() {
 
 export async function discover({ project, change, store }, run = native) {
   if (!project || !change || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(change))
-    throw new Error('Supply --project and a valid --change id.');
-  const cwd = await realpath(project);
-  const version = (await run(['--version'], cwd)).trim();
-  const [major, minor] = version.split('.').map(Number);
-  if (!/^\d+\.\d+\.\d+/.test(version) || major < 1 || (major === 1 && minor < 15))
-    throw new Error(`OpenSpec ${version} is not supported. Install OpenSpec 1.15.0 or newer.`);
-  const selector = store ? ['--store', store] : [];
-  const json = async (args) => {
-    try {
-      return JSON.parse(await run([...args, ...selector, '--json'], cwd));
-    } catch (error) {
-      throw new Error(`OpenSpec JSON/discovery error: ${error.message}`);
-    }
-  };
-  const context = await json(['context']);
-  if (
-    !context.root?.path ||
-    !['nearest', 'declared', 'store', 'global_default'].includes(context.root.source)
-  )
-    throw new Error('Unsupported OpenSpec root contract.');
-  if (context.root.source === 'global_default' && !store)
-    throw new Error('Global default refused. Select an explicit --store id.');
+    throw new Error('Supply a valid change name.');
+  const { json, context } = await session({ project, store }, run);
   const root = await realpath(context.root.path);
   const list = await json(['list']);
-  if (!Array.isArray(list.changes) || !list.changes.some((item) => item.name === change))
-    throw new Error(`Change not found: ${change}`);
+  if (!changeNames(list).includes(change))
+    throw new Error(missingChange(change, changeNames(list)));
   const status = await json(['status', '--change', change]);
   if (
     status.changeName !== change ||

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
 import { cli, launchFixture } from '../scripts/cli-fixture.js';
@@ -181,6 +181,17 @@ test('CLI runs the full loop against a detached server addressed by change name'
     0o600,
   );
   assert.equal(JSON.parse((await run(['open', 'example', '--no-open'])).stdout).status, 'reused');
+  const implicit = JSON.parse((await run(['open', '--no-open'])).stdout);
+  assert.deepEqual([implicit.status, implicit.change], ['reused', 'example']);
+  const second = path.join(f.project, 'openspec', 'changes', 'second');
+  await mkdir(second);
+  await writeFile(path.join(second, 'proposal.md'), '# Second\n');
+  const ambiguous = await run(['open', '--no-open']).catch((error) => error);
+  assert.equal(ambiguous.code, 1);
+  const listed = JSON.parse(ambiguous.stdout).error;
+  assert.match(listed, /^Choose a change: spectater open <change>\. Active changes: /);
+  assert.ok(listed.includes('example') && listed.includes('second'));
+  await rm(second, { recursive: true });
   assert.match((await run([])).stdout, /- example .*spectater wait example/);
   const nested = path.join(f.project, 'openspec', 'changes', 'example');
   assert.equal(

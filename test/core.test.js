@@ -6,7 +6,14 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { discover, hash, readDocument } from '../src/discovery.js';
+import {
+  discover,
+  hash,
+  listChanges,
+  missingChange,
+  native,
+  readDocument,
+} from '../src/discovery.js';
 import { anchor, render } from '../src/markdown.js';
 import { openReview } from '../src/review.js';
 import { openBrowser, startServer } from '../src/server.js';
@@ -57,7 +64,19 @@ test('discovery fails closed for missing CLI/change, unsupported version/JSON an
     discover(f.options, async (args) => (args[0] === '--version' ? '1.15.0' : 'oops')),
     /JSON/,
   );
-  await assert.rejects(discover({ ...f.options, change: 'missing' }), /not found/);
+  await assert.rejects(
+    discover({ ...f.options, change: 'missing' }),
+    /Change not found: missing\. Active changes: example\./,
+  );
+  assert.deepEqual(await listChanges({ project: f.project }), ['example']);
+  await assert.rejects(
+    listChanges(f.options, async (args) =>
+      args[0] === '--version'
+        ? '1.15.0'
+        : JSON.stringify({ root: { path: f.project, source: 'global_default' } }),
+    ),
+    /Global default/,
+  );
   await assert.rejects(
     discover(f.options, async (args) =>
       args[0] === '--version'
@@ -66,6 +85,30 @@ test('discovery fails closed for missing CLI/change, unsupported version/JSON an
     ),
     /Global default/,
   );
+});
+
+test('missing CLI and failed OpenSpec commands report actionable diagnostics', async (t) => {
+  const f = await fixture();
+  const tools = path.join(f.directory, 'tools');
+  const pathBefore = process.env.PATH;
+  t.after(async () => {
+    process.env.PATH = pathBefore;
+    await f.cleanup();
+  });
+  process.env.PATH = tools;
+  await assert.rejects(native(['--version'], f.project), /npm install -g @fission-ai\/openspec/);
+  await mkdir(tools);
+  await writeFile(
+    path.join(tools, 'openspec'),
+    `#!/bin/sh\necho '{"root":null,"status":[{"severity":"error","message":"No OpenSpec root found."}]}'\nexit 1\n`,
+    { mode: 0o700 },
+  );
+  await assert.rejects(native(['context', '--json'], f.project), (error) => {
+    assert.equal(error.message, 'No OpenSpec root found.');
+    return true;
+  });
+  assert.equal(missingChange(undefined, []).startsWith('No active OpenSpec changes.'), true);
+  assert.match(missingChange(undefined, ['a', 'b']), /Choose a change: .* Active changes: a, b\./);
 });
 
 test('canonical identities isolate roots and explicit stores propagate to every native call', async (t) => {
