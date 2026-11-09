@@ -1,53 +1,33 @@
 # SpecTater
 
-A local browser companion for reading and commenting on OpenSpec changes. Canonical Markdown stays authoritative; SpecTater stores feedback separately and never edits source.
+Read and comment on one local OpenSpec change. Markdown stays authoritative; feedback and source snapshots persist privately outside the repository.
 
-## Run locally
+## Run
 
-Use stable Bun 1.4.4 and OpenSpec 1.16.1. The native JSON contract is also verified against OpenSpec 1.15.0. Other versions fail explicitly. OpenSpec retains its upstream runtime prerequisites.
+Use Bun 1.4.4 and OpenSpec 1.16.1 (also verified: 1.15.0). OpenSpec retains its upstream Node prerequisites; Node 24 is tested. Native Git enables optional source comparisons.
 
 ```sh
 bun install --frozen-lockfile --ignore-scripts
-bun bin/spectater.js open --project /path/to/project --change change-id
+bun run bin/spectater.js open --project /path/to/project --change change-id
 ```
 
-For a checkout's development CLI, `bun run` puts the pinned development OpenSpec executable on PATH:
+From an installed package, use `spectater` instead of the checkout launcher. No registry release is published yet. Automatic opening is implemented for macOS; elsewhere use `--no-open` and the printed URL. The URL uses the change name; its secret fragment disappears after opening. Keep the initial link private. Ctrl-C stops the server without deleting saved feedback.
 
-```sh
-bun run bin/spectater.js open --project /path/to/project --change change-id --no-open
-```
+## Review
 
-No registry release is published by these instructions. Automatic browser opening is implemented for macOS; use `--no-open` and the printed URL elsewhere. The route uses the change name; internal review IDs still isolate worktrees. Keep the initial capability URL private; its secret fragment disappears after opening. Stop with Ctrl-C; saved feedback survives restart.
+1. Read rendered Markdown or exact Source. Select text to open the comment popover. Selections across formatting/paragraphs use labeled enclosing-source precision.
+2. Save comments, then submit new or changed feedback. A listening agent receives the batch; otherwise it stays queued.
+3. Before delivery, Edit queued pauses a batch for correction and explicit replacement. Cancel submission preserves its comments. After delivery, Send correction creates new feedback without recalling instructions.
+4. Source saves update the reader automatically. Old comments become stale/orphaned; reattachment is explicit. What changed compares the latest source update with the previous one, including added/removed files.
+5. End review preserves read-only history and tells a waiting agent to stop listening. Deliver or cancel queued batches first. Resume review or `open --reopen` explicitly resumes; a normal open does not silently restart an ended review.
 
-## Review loop
+The sun/moon button initially follows your system. Details restores System appearance. Metadata, withdrawn history and copy/download use collapsed disclosures. Draft text may recover in the same tab; save comments for durable storage.
 
-1. Read the selected change's native artifact list and rendered or exact source view.
-2. Select text, type in the popover and save a comment. Rendered selections show exact or enclosing-span precision; selections across formatting and paragraphs use a labeled enclosing Markdown range.
-3. Submit a batch of new or changed comments. An existing waiting conversation receives it; otherwise it stays queued. Copy its retrieval command or Markdown export for manual handoff.
-4. Have the existing agent read the explicit batch and revise Markdown within its existing authorization.
-5. Source updates automatically after selected-change saves. Old comments become stale or orphaned; reattachment is explicit and preserves original anchors. Submitted contents remain unchanged; undelivered batches can be paused for editing or cancelled. Update queued batch creates a replacement.
+Submission, replies, task completion and End review never grant implementation, merge or deployment approval. SpecTater does not start, interrupt or wake models. See [the existing-conversation workflow](docs/workflow.md) for bounded waiting, replies and the supplied on-demand skill.
 
-```sh
-bun bin/spectater.js feedback --review REVIEW_ID --batch BATCH_ID --format markdown
-```
+## Preferences and storage
 
-Submission saves an immutable batch and returns it to an explicitly waiting CLI after durable handoff. Before handoff, use Edit queued or Cancel submission. After handoff, Send correction edits a comment for the next batch; it cannot recall delivered instructions. It does not start an agent, resolve comments or approve implementation, merge or deployment. See [workflow integration](docs/workflow.md).
-
-## Agent loop
-
-After opening, the existing conversation can wait with `spectater feedback --review REVIEW_ID --after 0 --wait 55 --format json`, report `spectater reply --review REVIEW_ID --batch BATCH_ID --status working`, then revise and validate Markdown. Selected-change saves update the reader automatically. Post the result with `spectater reply --review REVIEW_ID --batch BATCH_ID --message-file result.txt` and return to waiting after the handled sequence. Receipts distinguish queued, received, working and replied; a reply does not resolve comments or grant approval. `spectater refresh --review REVIEW_ID` is the manual retry. Preserve your config/state location. `spectater skill` prints the supplied on-demand skill, and `spectater workflow` prints current instructions. See [workflow usage](docs/workflow.md).
-
-Implementation requirements, design and task completion are tracked in [the active OpenSpec change](openspec/changes/local-change-review/). This change remains unarchived until operator review; canonical capability specs are promoted through native OpenSpec archive rather than copied manually.
-
-## Appearance
-
-The reader follows the Clean design system. The sun/moon button starts by following your OS preference. Click it to switch light/dark; **Use system theme** under **Details** restores automatic appearance. The choice survives reloads for that local origin. A new server port starts with System. No theme setup or dependencies are needed.
-
-Artifact metadata is under **Details**. Select text to open a focused comment popover; saved comments appear in the sidebar, where you can edit, resolve or delete them. Deletion has Undo and a restore list. Submitted batches remain immutable. Drafts can resume after a reload in the same tab when browser storage is available; save comments for durable storage. Copy/download stays collapsed under More after submission. Opening a saved batch reveals its historical export. The interface uses the native Apple system font stack and a local vector potato logo, with no font downloads.
-
-## Configuration
-
-No configuration file is required. Defaults are rendered view, automatic browser-opening attempt and private platform review storage. An optional JSON file at `$XDG_CONFIG_HOME/spectater/config.json` (otherwise `~/.config/spectater/config.json`) can override preferences:
+No config is required. Defaults are rendered view, a browser-opening attempt and private platform storage. An optional JSON file at `$XDG_CONFIG_HOME/spectater/config.json` (otherwise `~/.config/spectater/config.json`) may contain:
 
 ```json
 {
@@ -56,35 +36,26 @@ No configuration file is required. Defaults are rendered view, automatic browser
 }
 ```
 
-`stateDirectory` optionally selects an absolute private storage path. `--config <file>` overrides `SPECTATER_CONFIG`, which overrides the default config path. `SPECTATER_STATE_DIR` overrides the configured storage location. `--no-open` always suppresses opening. Missing default config uses built-in defaults; invalid settings or explicitly selected missing files produce an actionable error. Repo content cannot configure the process. Security boundaries are fixed.
+`stateDirectory` optionally selects an absolute private path. `--config` overrides `SPECTATER_CONFIG`, which overrides the default config path; `SPECTATER_STATE_DIR` overrides the storage preference. `--no-open` always suppresses opening. Repo content cannot configure the process. Invalid settings fail visibly.
 
-Review storage defaults to `~/Library/Application Support/SpecTater` on macOS and `$XDG_STATE_HOME/spectater` (otherwise `~/.local/state/spectater`) on Linux. Reviews remain until you explicitly remove their state. Storage has a 64 MiB per-review limit and fails visibly instead of evicting context. Moving storage does not migrate reviews automatically. After a crash, inspect the writer lock and verify its process has stopped before explicitly removing that lock. Never remove a live writer's lock.
+Storage defaults to `~/Library/Application Support/SpecTater` on macOS and `$XDG_STATE_HOME/spectater` (otherwise `~/.local/state/spectater`) on Linux. Back it up separately from Git; feedback exports are not full state backups. Corrupt state is preserved, and conflicting writers are refused. After a crash, verify the recorded writer has stopped before explicitly removing its lock. Moving a worktree or changing storage does not migrate review identity automatically.
 
-## Compatibility and boundaries
+## Boundaries
 
-The reader uses native root/schema/status discovery, including custom artifact paths, explicit/declared stores and isolated worktree identities. It does not scan siblings or follow context members. Global-default stores require explicit selection.
+Native OpenSpec selects the root, schema and artifact paths, including declared/explicit stores and isolated worktrees. Unselected global stores are refused. Only that selected change is observed; there is no polling scanner, account, hosted backend or installed hook.
 
-Markdown uses CommonMark/GFM parsing. Raw HTML and diagrams remain inert, remote images do not load and relative document links have no navigation route. Rendered selections across source leaves use enclosing-span precision; unmapped boundaries require Source view. Files must be strict UTF-8 and no larger than 1 MiB; one review allows 128 artifact paths and 16 MiB of current source.
+Raw HTML and diagrams remain inert; remote images do not load. Relative links do not navigate. Unmapped selection boundaries require Source. Limits are 1 MiB/file, 128 artifacts, 16 MiB current source, 64 MiB private state, 10,000 characters/selection or comment, and 256 observed directories. Git comparisons are bounded to 3 seconds/256 KiB output.
 
-The server binds `127.0.0.1` with capability authorization, Host/Origin checks and a fixed manifest. Review storage is private and outside the repository. macOS is the exercised platform. Linux permissions and manual opening are implemented but remain unverified on Linux; Windows private storage and browser opening are unsupported. See [security](SECURITY.md) and [verification](docs/verification.md).
-
-There are no accounts, hosted services, embedded models, installed hooks, browser source editing or agent lifecycle control. Private same-user Unix IPC connects CLI commands to the owning reader process; the browser uses a capability-authorized event stream.
+macOS is exercised. Linux private storage/IPC/manual opening are implemented; the prepared Linux CI workflow has not run remotely. Windows storage/IPC/opening are unsupported. See [security](SECURITY.md), [the security pass](docs/security-review.md) and [verification](docs/verification.md).
 
 ## Development
 
 ```sh
-bun run test
-bun run test:browser
-bun run test:package
-bun run smoke -- --fixture local-review --no-open
-bun run benchmark
-bun run benchmark -- --project . --change local-change-review
+bun run check
 ```
 
-Browser checks use a dedicated headless installed Chrome channel. Package checks create a local tarball and temporary offline install; fill Bun's package cache through the normal install first. No global install or publication occurs.
+This runs Biome formatting/import/lint checks, contract/browser/package tests, the owned smoke, strict OpenSpec validation, whitespace checks and dependency audit. Use `bun run format` to apply Biome fixes. Install Chrome with `bun run playwright install chrome` if absent. Package tests use a temporary offline install, so fill Bun's cache through the frozen install first. `bun run benchmark` measures an isolated fixture; add `-- --project . --change local-change-review` for a full change.
 
-Renovate inherits the shared preset in `renovate.json`. A stricter local override keeps automatic merges disabled until remote validation is reporting and required. No Dependabot update producer is configured.
+The public CI workflow pins its actions, uses repository runner variables and skips automatic fork execution on those runners. Runner configuration/remote activation remains an operator step. Renovate is the sole update producer; automatic merges remain disabled pending reporting and required checks.
 
-## License
-
-MIT. See LICENSE.
+Requirements/design/tasks live in [the OpenSpec change](openspec/changes/local-change-review/); [DESIGN.md](DESIGN.md) contains reusable visual tokens. The change remains unarchived pending acceptance. MIT license; see LICENSE.

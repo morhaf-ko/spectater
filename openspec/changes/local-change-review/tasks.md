@@ -50,3 +50,16 @@ The operator authorized implementation after proposal review. Runtime and comman
 - [x] 7.2 Submit only new or changed open comments, block parallel resubmission of comments already queued, and update a paused batch from its current saved comments without resending unrelated old feedback.
 - [x] 7.3 Add edit/cancel/update queue controls, truthful delivered/cancelled/replaced states and collapsed copy/download actions; keep after-delivery correction explicit and preserve drafts.
 - [x] 7.4 Verify delivery/cancellation races, retries, restart persistence, offline/archive retrieval, browser flow and installed CLI; run the integrated gates and retain preview feedback for operator review.
+
+## 8. Complete the review lifecycle and source comparison
+
+- [x] 8.1 Add durable End review and explicit Resume review/--reopen, preserve history and drafts, reject queued-work abandonment and post-end mutations, and return ended to waiting agents without model control.
+- [x] 8.2 Retain current/previous source manifests across restart and show added/removed/changed files with bounded, on-demand native Git diffs; keep metadata-only actions from advancing the comparison baseline.
+- [x] 8.3 Verify browser lifecycle/diff flows, CLI wait/end/reopen, persistence, source bounds, escaping diff text and missing/native-diff failure behavior.
+
+## 9. Audit and automate maintainable local delivery
+
+- [x] 9.1 Audit all tracked code and documentation for dead paths, stale instructions and unnecessary complexity; make focused simplifications with regression checks and retain canonical OpenSpec ownership.
+- [x] 9.2 Review filesystem, browser, IPC, subprocess, persistence and automation security; repair findings and record scope/evidence without claiming an independent review.
+- [x] 9.3 Provide one repeatable local check entrypoint and least-privilege, pinned, fork-safe CI using repository runner variables; validate locally without changing remote settings, triggering runners or publishing.
+- [x] 9.4 Run the final integrated gates, inspect desktop/mobile states, retain operator preview feedback, commit locally and report release prerequisites and remaining unsupported behavior.

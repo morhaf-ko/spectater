@@ -11,13 +11,26 @@
   "bin": {
     "spectater": "bin/spectater.js"
   },
-  "files": ["bin/", "src/", "web/", "docs/", "integration/", "README.md", "LICENSE", "SECURITY.md"],
+  "files": [
+    "bin/",
+    "src/",
+    "web/",
+    "docs/",
+    "integration/",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
   "scripts": {
     "test": "bun test --timeout 30000 test/*.test.js",
     "test:browser": "bun --bun node_modules/@playwright/test/cli.js test",
     "test:package": "bun scripts/package-test.js",
     "smoke": "bun scripts/smoke.js",
-    "benchmark": "bun scripts/benchmark.js"
+    "benchmark": "bun scripts/benchmark.js",
+    "lint": "biome ci .",
+    "spec:check": "OPENSPEC_TELEMETRY=0 openspec validate --all --strict --no-interactive",
+    "check": "bun run lint && bun run test && bun run test:browser && bun run test:package && bun run smoke -- --fixture local-review --no-open && bun run spec:check && git diff --check && bun audit",
+    "format": "biome check --write ."
   },
   "dependencies": {
     "remark-gfm": "4.0.1",
@@ -25,7 +38,15 @@
     "unified": "11.0.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.6",
     "@fission-ai/openspec": "1.16.1",
     "@playwright/test": "1.65.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/morhaf-ko/spectater.git"
+  },
+  "bugs": {
+    "url": "https://github.com/morhaf-ko/spectater/issues"
   }
 }
