@@ -22,3 +22,11 @@ The operator authorized implementation after proposal review. Runtime and comman
 - [x] 3.2 Exercise custom schemas, declared/explicit stores, global-default refusal and separate worktrees sharing a change slug; verify native discovery fixtures and identity isolation through `bun run test`, and document only exercised compatibility.
 - [x] 3.3 Add the optional on-demand workflow instruction, macOS opener and no-open/manual URL path; verify opener success once locally and forced failure/clipboard denial through `bun run test:browser`, and document that instruction-based opening is not a guaranteed OpenSpec event hook.
 - [x] 3.4 Build and inspect a local package, install into a temporary prefix and exercise installed help/review/retrieval through `bun run test:package`; run `bun run smoke -- --fixture local-review --no-open`, strict OpenSpec validation and `git diff --check`; record readiness, completed browser checks and human visual review separately. Registry publication and releases require separate authority.
+
+## 4. Complete the operator review loop
+
+- [x] 4.1 Fix actual pointer selection and add the local favicon; verify real drag/double-click composition and favicon loading in Chrome browser tests.
+- [x] 4.2 Add bounded feedback waiting with durable batch sequence cursors; verify queued-before-wait delivery, live submission, timeouts and repeatable retrieval without a second agent.
+- [x] 4.3 Reuse an active exact-change review and refresh it through private local IPC; verify no second writer, browser update, draft preservation and stale/orphan reconciliation.
+- [x] 4.4 Ship a small first-party skill stub which reads current CLI guidance without installing global hooks or changing agent ownership; validate the stub and exercise its documented commands.
+- [x] 4.5 Reconcile design/spec/tasks as the planning authority, keep docs/workflow.md as usage only, and run the integrated contract/browser/package/smoke/native gates before local commit and Chrome preview handoff.

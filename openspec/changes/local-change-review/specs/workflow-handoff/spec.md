@@ -6,6 +6,39 @@ Connect local OpenSpec review to the conversation already drafting a change with
 
 ## ADDED Requirements
 
+### Requirement: Bounded feedback waiting
+The system SHALL let the existing conversation wait for the next immutable submitted batch after an explicit sequence cursor. It MUST deliver already queued batches, retain them across listener disconnects and restarts, bound each wait to at most 55 seconds and report timeout explicitly. Retrieval MUST NOT consume batches or imply that their contents were addressed.
+
+#### Scenario: Feedback submitted while waiting
+- **WHEN** an authorized local CLI waits after a known sequence and the operator submits feedback
+- **THEN** the wait returns the next durable batch to that CLI without starting or controlling an agent
+
+#### Scenario: No listener or retry
+- **WHEN** a batch is submitted before a listener starts or that listener disconnects
+- **THEN** the same cursor can retrieve the retained batch on a subsequent call
+
+#### Scenario: Bounded timeout
+- **WHEN** no newer batch arrives within the requested wait budget
+- **THEN** the command returns an explicit timeout result without deleting data or continuing indefinitely
+
+### Requirement: Active review continuity
+The system SHALL reuse a running review for the same canonical identity and private state location. It SHALL let an authorized local CLI refresh that process after canonical Markdown changes and notify connected readers. It MUST keep the one-writer invariant, preserve unsaved text, and reconcile stale/orphaned anchors without treating a refresh as approval.
+
+#### Scenario: Agent revises the plan
+- **WHEN** the existing conversation revises and validates Markdown and invokes refresh for the review
+- **THEN** connected readers display the new source and retained feedback without a second server or writer
+
+#### Scenario: Open an existing review
+- **WHEN** open selects an identity already served from the same state location
+- **THEN** the command returns that active review rather than creating another writer
+
+### Requirement: On-demand skill delivery
+The system SHALL ship a small first-party skill entrypoint which delegates current commands and the review loop to the installed CLI. It MUST preserve explicit project/change/store/state selections and existing conversation authorization. Providing the skill MUST NOT install hooks, register plugins or mutate personal agent configuration implicitly.
+
+#### Scenario: Skill reads current guidance
+- **WHEN** an existing agent loads the tool's supplied skill
+- **THEN** it discovers open, bounded wait and refresh usage from the CLI and stays in the same conversation
+
 ### Requirement: Exact-change opening
 The system SHALL attempt to open the selected review route only after local readiness, unless no-open mode is selected. It MUST print a usable local URL on opener failure and report discovery failure before opening a browser.
 

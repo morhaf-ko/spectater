@@ -31,7 +31,13 @@ No registry release is published by these instructions. Automatic browser openin
 bun bin/spectater.js feedback --review REVIEW_ID --batch BATCH_ID --format markdown
 ```
 
-Submission does not send feedback to an agent, resolve comments or approve implementation, merge or deployment. See [workflow integration](docs/workflow.md).
+Submission saves an immutable batch and returns it to an explicitly waiting CLI. It does not start an agent, resolve comments or approve implementation, merge or deployment. See [workflow integration](docs/workflow.md).
+
+## Agent loop
+
+After opening, the existing conversation can wait with `spectater feedback --review REVIEW_ID --after 0 --wait 55 --format json`, revise and validate Markdown, then run `spectater refresh --review REVIEW_ID`. The active reader updates without a second writer. Preserve your config/state location. `spectater skill` prints the supplied on-demand skill, and `spectater workflow` prints current instructions. See [workflow usage](docs/workflow.md).
+
+Implementation requirements, design and task completion are tracked in [the active OpenSpec change](openspec/changes/local-change-review/). This change remains unarchived until operator review; canonical capability specs are promoted through native OpenSpec archive rather than copied manually.
 
 ## Appearance
 
@@ -62,7 +68,7 @@ Markdown uses CommonMark/GFM parsing. Raw HTML and diagrams remain inert, remote
 
 The server binds `127.0.0.1` with capability authorization, Host/Origin checks and a fixed manifest. Review storage is private and outside the repository. macOS is the exercised platform. Linux permissions and manual opening are implemented but remain unverified on Linux; Windows private storage and browser opening are unsupported. See [security](SECURITY.md) and [verification](docs/verification.md).
 
-There are no accounts, hosted services, embedded models, hooks, source editing or agent lifecycle control.
+There are no accounts, hosted services, embedded models, installed hooks, browser source editing or agent lifecycle control. Private same-user Unix IPC connects CLI commands to the owning reader process; the browser uses a capability-authorized event stream.
 
 ## Development
 

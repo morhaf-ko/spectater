@@ -1,74 +1,42 @@
 # Verification
 
-## Exercised environment
+## Local acceptance
 
-Local macOS, Bun 1.4.4, Node 24.22.2 for the external OpenSpec CLI, OpenSpec 1.16.1 and installed Chrome 156.0.8078.81. The initial vertical slice and baseline also exercised OpenSpec 1.15.0. Other CLI versions fail closed. Direct package versions matched registry stable tags on 2026-11-09: remark-parse 11.0.0, remark-gfm 4.0.1, unified 11.0.5, Playwright 1.65.0 and development OpenSpec 1.16.1. No prerelease channel is selected.
+Exercised environment: macOS, Bun 1.4.4, external OpenSpec 1.16.1, installed headless Chrome 156.0.8078.81. The original slice also exercised OpenSpec 1.15.0. Other CLI contracts fail explicitly. Runtime dependencies remain unified 11.0.5, remark-parse 11.0.0 and remark-gfm 4.0.1. No dependency was added for themes, popovers, private IPC, events, icons or the skill.
 
-## Acceptance interfaces
-
-Local acceptance passed: 14 contract tests, seven browser tests, a 16-file package allowlist with temporary offline install, CLI smoke, frozen install, dependency audit, Renovate validation and strict OpenSpec validation. No checks were waived.
-
-| Command | Evidence |
+| Gate | Result |
 | --- | --- |
-| `bun install --frozen-lockfile --ignore-scripts` | Exact lockfile installation; no lifecycle scripts |
-| `bun run test` | Native schema paths, missing/unsupported CLI contracts, actual isolated declared/explicit/default stores, identity separation, symlink escape, Unicode/CRLF, inert rendering, conflicts, durability, corruption, failed writes, immutable batches, HTTP boundaries and config defaults/errors |
-| `bun run test:browser` | Read/select/comment/submit/CLI retrieve/revise/refresh/restart; exact/enclosing selection, source fallback, clipboard denial/download, malicious Markdown, source default, mobile overflow/focus and forced opener failure |
-| `bun run test:package` | Allowlisted tarball, temporary offline Bun install, installed help and complete feedback loop; unchanged canonical bytes |
-| `bun run smoke -- --fixture local-review --no-open` | Owned CLI readiness, manifest, persistent state and SIGTERM shutdown; separate from browser acceptance |
-| `bun audit` | Registry audit of the locked dependency set |
-| `bunx --package renovate@44.223.0 renovate-config-validator --strict --no-global renovate.json` | Repository configuration syntax/option validation; does not prove remote preset access or bot activation |
-| `OPENSPEC_TELEMETRY=0 node_modules/.bin/openspec validate local-change-review --type change --strict --no-interactive --json` | Native strict change validation |
-| `git diff --check` | Patch whitespace |
+| `bun install --frozen-lockfile --ignore-scripts` | Passed; 129 packages checked, no lockfile changes |
+| `bun run test` | 19 passed, zero failed: discovery, native stores/worktrees, source/security/persistence, comment lifecycle and private agent-loop transport |
+| `bun run test:browser` | Nine passed in a dedicated headless Chrome: actual drag/double-click, favicon, wait/submit/refresh, revision conflicts, restart, themes, draft recovery, comment editing/deletion and viewport behavior |
+| `bun run test:package` | 21 allowlisted files; temporary offline Bun install; installed skill/workflow/open/wait/retrieval/reuse/refresh passed |
+| `bun run smoke -- --fixture local-review --no-open` | Owned CLI readiness, manifest, persistent state, SIGTERM shutdown and unchanged source passed |
+| Native strict OpenSpec validation | local-change-review valid=true, issues=[] |
+| `git diff --check` | Clean |
+| First-party skill validation | skill-creator quick_validate returned valid; its documented interfaces also ran from the installed tarball |
 
-Test fixtures live under test/; scripts under scripts/. They create temporary projects/state, scope OpenSpec store configuration to temporary XDG directories, and remove only owned data. No user store registry, canonical review documents, global install, hook or production service is changed.
+The locked set's latest registry audit reported no vulnerabilities across 129 packages; no dependencies changed afterward. Renovate 44.223.0 strict repository-config validation passed. It validates configuration/options, not remote preset access or bot activation. Automatic merges remain disabled pending remote reporting/required checks.
 
-The first browser vertical slice passed before expanded mapping/store tests. Development failures included a forged-Host test using a client that normalized the header, fixture teardown ordering, Bun's default test timeout, an unfilled offline package cache and a screenshot fixture path. Inputs were corrected and affected gates rerun. A sandbox loopback denial required the normal execution permission; no boundary was bypassed. Full-page mobile screenshots repeated the viewport in Chrome; viewport captures replaced that evidence.
+## Scope of exercised behavior
 
-## Browser and design evidence
+Temporary fixture roots/state and XDG-isolated store registries are removed by their owning tests. Actual Git worktrees sharing a slug retain distinct review identities. No user registry, global skill/hook/plugin, real project source, remote account, provider or production service is modified by tests.
 
-The operator selected navigation, central reading and feedback sidebar. Browser checks capture desktop at 1440×900 and mobile at 390×844, including the mobile feedback region. These are viewport sizes, not physical-device proof. Rendered/source, empty, saved/current, stale, orphaned, conflict, receipt, clipboard denial and opener fallback states are exercised. Agent screenshot inspection and the mechanical detector are separate from operator visual acceptance. The detector returned no findings. No delegated reviewer was used under the mission's no-delegation constraint.
+The real-pointer regression first reproduced the missing popover: opening during mouseup let the browser's subsequent native click dismiss it. Opening after that gesture passes actual drag and double-click checks. Synthetic ranges remain useful for exact offsets but are not the only interaction evidence.
 
-The real macOS `open` invocation returned success and the resulting browser visibly showed the exact fixture change with Ready status. That check used a disposable fixture, separate from the headless browser suite. A successful server start alone was not counted as browser completion.
+The agent-loop browser test starts a bounded CLI wait, submits in the browser, receives the durable immutable batch, changes fixture Markdown explicitly, invokes CLI refresh and observes updated source/stale comments with draft text preserved. Other tests cover queued-before-wait delivery, repeatable cursor reads, timeout bounds, disconnect cancellation, stopped listeners, same-user socket permissions, regular-file refusal, active reuse and offline batch retrieval. Graceful transport shutdown and monotonic state acceptance are exercised with reloads.
 
-## Performance evidence
+Light/dark desktop 1440×900 and mobile 390×844 screenshots include source and viewport-clamped popovers. These are viewport tests, not physical-device proof. The static-shell detector flags the 12/14/16px metadata hierarchy; screenshot review distinguishes it from rendered document headings at 28/24/18px. No operator aesthetic acceptance, independent security review or assistive-technology conformance is inferred. Final verification uses automation and APIs rather than computer-use tools or personal browser profiles.
 
-`bun run benchmark` creates one small Markdown artifact and measures three sequential local runs with warm OS/package caches. It reports median milliseconds for review initialization, a state view, a durable comment save and refresh. It does not measure full browser startup, large projects, cold caches, memory usage or token savings.
+## Artifact safety and limits
 
-| Runtime / native CLI / implementation | Open | View | Save | Refresh |
-| --- | ---: | ---: | ---: | ---: |
-| Node 24.22.2 / OpenSpec 1.15.0 / initial | 1682.70 | 0.51 | 614.02 | 598.19 |
-| Bun 1.4.4 / OpenSpec 1.15.0 / initial | 1683.93 | 1.47 | 802.84 | 780.41 |
-| Bun 1.4.4 / OpenSpec 1.15.0 / reduced repeated work | 603.77 | 0.05 | 2.39 | 530.88 |
-| Bun 1.4.4 / OpenSpec 1.16.1 / reduced repeated work | 623.74 | 0.02 | 6.87 | 722.31 |
+Canonical Markdown stays authoritative. Saved comments, snapshots and batches survive restarts in private disk state. Comment deletion is recoverable and submitted batches stay immutable. Unsaved sessionStorage drafts are weaker: same-tab/origin reload recovery depends on available browser storage, and changed hashes require a new selection. Worktree relocation does not automatically migrate review identity; keep private state and Git backups rather than resetting it.
 
-The runtime switch alone did not improve this fixture. Startup now performs one discovery rather than two; version is checked once per review process. Native discovery runs on open/explicit refresh. Saves rehash current manifest files and check the state revision without spawning OpenSpec. Rendered output is reused by byte hash and renderer version for current documents only. Snapshots and durable writes remain; there is no polling, file watcher or speculative background scanner. Differences between CLI-version rows are not a controlled speed comparison.
+macOS is the exercised platform. Linux private storage/IPC/manual opening remain unverified on Linux; Windows private storage/IPC and automatic opening are unsupported. Cross-leaf rendered selection requires Source. Publication, hosted CI, Renovate activation and independent release security review remain outside local implementation acceptance. No release readiness or ability to wake a stopped model is claimed.
 
-## Remaining limits
+## Performance sample
 
-macOS is exercised. Linux permissions/manual opening remain unverified on Linux; Windows storage and automatic opening are unsupported. Cross-leaf rendered selection falls back to Source. Registry publication, hosted CI, Renovate activation/preset access, independent security review and operator aesthetic acceptance are outside this local evidence. Renovate automatic merges stay disabled until remote validation is reporting and required. No release or production readiness is claimed.
+`bun run benchmark -- --project . --change local-change-review` measured six documents with 33,517 current source bytes and a 103,321-byte initial JSON response at that time. Three sequential warm-cache runs gave median initialization 687.25 ms, state view 0.07 ms, durable save 7.72 ms and refresh 594.43 ms. Separate native subprocess samples were version 50.12 ms, context 154.48 ms, list 164.31 ms and status 211.15 ms. This does not measure full browser launch, cold caches, physical memory, large-project behavior or token savings.
 
-## Clean and theme refinement
+At that measurement the HTML/CSS/app/theme assets totaled 32,284 uncompressed bytes; the local favicon adds 436 bytes. Theme changes update root variables without network requests or document replacement. Plan updates use authenticated revision notifications; no polling or background repository scanner is introduced. Current rendering is cached by source hash/renderer version and comment saves do not spawn OpenSpec. Source hashes, one-writer locks, fsync and atomic state persistence remain required.
 
-The operator requested the OpenDesign Clean system, system-mode default, manual light/dark overrides and fewer visible instructions. The implementation keeps artifact metadata behind Details and export controls behind Export. Six browser tests pass, including OS color-scheme changes, persistent overrides, selection/draft preservation and storage-denial fallback. Light/dark screenshots at 1440×900 and 390×844 were inspected; the scoped detector returned no findings. The source reference and license are recorded in DESIGN.md. No runtime or theme dependency was added.
-
-The complete active change was measured with `bun run benchmark -- --project . --change local-change-review`: six documents, 36,177 source bytes and a 114,856-byte initial JSON state response at measurement time. Three sequential warm-cache runs gave median initialization 629.93 ms, view 0.06 ms, durable save 10.52 ms and refresh 621.38 ms. Separate native subprocess samples measured version 59.90 ms, context 226.91 ms, list 242.95 ms and status 231.85 ms. These are local samples, not cross-machine guarantees or controlled comparisons between CLI commands.
-
-Served assets at that point: HTML 2,847 bytes, CSS 8,856 bytes, app JavaScript 9,097 bytes and theme JavaScript 979 bytes (21,779 bytes total, uncompressed). Theme changes update root attributes/CSS variables without network requests or document rendering. No theme paint-time benchmark is claimed.
-
-Prioritized future performance experiments:
-
-1. Verify whether one native status response provides every needed root, schema, artifact and diagnostic field for the supported versions/stores. If it does, replace redundant context/list calls while retaining native discovery and global-default refusal. Current measurements identify subprocess startup as the dominant cost; no parser replacement is proposed.
-2. Return smaller mutation responses and load only the selected document, with explicit invalidation. The current response contains every document's source/rendered HTML and repeated comment snapshots. Measure larger changes before adding transport/cache complexity.
-3. Evaluate lazy artifact parsing or one local parser bundle if larger-change profiling shows import/parsing cost. Current state views are already below one millisecond in this sample.
-
-Revision hashes, filesystem boundaries, one-writer checks, fsync and atomic state persistence remain required. Compression, native binaries, background daemons and extra caches are not justified by the current local measurements.
-
-## Selection composition and comment management
-
-The operator requested a sun/moon button, selection-based composer, editable/deletable sidebar comments, a humorous logo and native Apple typography. Seven browser tests pass, including a focused, viewport-clamped native popover in both themes at 1440×900 and 390×844, Escape dismissal, reloadable tab drafts, edit/delete/undo/restore and unchanged submitted batches. Fourteen contract tests pass; deletion and restoration survive restart, and editing/deletion never changes a submitted batch. Package installation, smoke and strict OpenSpec checks also passed. No dependency, downloaded font, image request or polling loop was added.
-
-The mechanical detector reports flat type hierarchy for the static shell's 12/14/16px metadata/control headings. Screenshot inspection distinguishes that shell from the dynamically rendered document's 28/24/18px headings. The warning is recorded rather than treated as a functional failure or a claim of operator aesthetic acceptance. Light/dark desktop/mobile popover captures were visually inspected. Actual mobile-device and assistive-technology evidence remain unclaimed.
-
-Draft session storage is a recovery convenience for the same tab and origin. Saved comments and immutable batches remain authoritative in private disk state. Changed source invalidates a cached selection while retaining draft text. Recoverable comment deletion retains the record and its snapshots; physical review-state deletion/export migration remains an explicit separate action.
-
-The Lavish comparison and proposed on-demand skill/wait/refresh loop are in docs/workflow.md. Those integration commands are unimplemented and no skill/hook/plugin was installed. Current Submit creates a durable receipt; it does not wake a stopped agent or automatically refresh after plan changes.
+Implementation contracts and optional optimization ideas live in openspec/changes/local-change-review/design.md. Supported agent commands live in docs/workflow.md; neither this evidence file nor that usage guide is a second task ledger.

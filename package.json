@@ -11,7 +11,7 @@
   "bin": {
     "spectater": "bin/spectater.js"
   },
-  "files": ["bin/", "src/", "web/", "docs/", "README.md", "LICENSE", "SECURITY.md"],
+  "files": ["bin/", "src/", "web/", "docs/", "integration/", "README.md", "LICENSE", "SECURITY.md"],
   "scripts": {
     "test": "bun test --timeout 30000 test/*.test.js",
     "test:browser": "bun --bun node_modules/@playwright/test/cli.js test",

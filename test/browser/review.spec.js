@@ -31,6 +31,65 @@ async function selectSource(page, text) {
   }, text);
 }
 
+test('a real mouse drag in rendered prose opens a usable comment composer', async ({ page }) => {
+  const f = await fixture(); let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+    await page.goto(server.url); await expect(page.locator('#message')).toContainText('Ready.');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
+    const icon = await page.request.get(`${server.origin}/favicon.svg`);
+    expect(icon.status()).toBe(200); expect(icon.headers()['content-type']).toContain('image/svg+xml');
+    const bounds = await page.locator('#rendered [data-start]').filter({ hasText: 'Review this exact sentence.' }).evaluate(el => {
+      const range = document.createRange(), text = el.firstChild;
+      const start = text.data.indexOf('exact sentence');
+      range.setStart(text, start); range.setEnd(text, start + 'exact sentence'.length);
+      const r = range.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height };
+    });
+    await page.mouse.move(bounds.x + 1, bounds.y + bounds.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width - 1, bounds.y + bounds.height / 2, { steps: 15 });
+    await page.mouse.up();
+    await expect(page.getByRole('dialog', { name: 'Add comment' })).toBeVisible();
+    await expect(page.locator('#comment')).toBeFocused();
+    await page.keyboard.type('Selected with the mouse.'); await page.locator('#save').click();
+    await expect(page.locator('#comments')).toContainText('Selected with the mouse.');
+    await page.locator('#rendered [data-start]').filter({ hasText: 'Review this exact sentence.' }).dblclick();
+    await expect(page.getByRole('dialog', { name: 'Add comment' })).toBeVisible();
+    await expect(page.locator('#comment')).toBeFocused();
+  } finally { await server?.close(); await f.cleanup(); }
+});
+
+test('the existing CLI waits for submission and refreshes the active reader without losing drafts', async ({ page }) => {
+  const f = await fixture(); let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+    const stream = page.waitForResponse(response => response.url().endsWith('/events') && response.status() === 200);
+    await page.goto(server.url); await expect(page.locator('#message')).toContainText('Ready.'); await stream;
+    const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
+    const run = args => promisify(execFile)(process.execPath, ['bin/spectater.js', ...args], { env, timeout: 15000 });
+    const waiting = run(['feedback', '--review', review.state.reviewId, '--after', '0', '--wait', '10', '--format', 'json']);
+    await expect(page.locator('#listener-status')).toHaveText('Feedback listener waiting');
+    await selectSource(page, 'exact sentence');
+    await page.locator('#comment').fill('Feedback for the waiting conversation.'); await page.locator('#save').click();
+    await page.locator('#submit').click(); await expect(page.locator('#message')).toContainText('Batch saved.');
+    const batch = JSON.parse((await waiting).stdout);
+    expect(batch.status).toBe('batch'); expect(batch.sequence).toBe(1);
+    expect(batch.entries[0].body).toBe('Feedback for the waiting conversation.');
+    await expect(page.locator('#listener-status')).toBeHidden();
+    await selectSource(page, 'exact'); await page.locator('#comment').fill('Keep this draft during the agent refresh.');
+    await writeFile(f.file, `Agent revision.\n\n${sample}`);
+    const receipt = JSON.parse((await run(['refresh', '--review', review.state.reviewId])).stdout);
+    expect(receipt.status).toBe('refreshed');
+    await expect(page.locator('#source')).toContainText('Agent revision.');
+    await expect(page.locator('#comments')).toContainText('stale · open');
+    await expect(page.locator('#comment')).toHaveValue('Keep this draft during the agent refresh.');
+    await expect(page.getByRole('button', { name: 'Resume draft' })).toBeVisible();
+    const timeout = JSON.parse((await run(['feedback', '--review', review.state.reviewId, '--after', '1', '--wait', '0', '--format', 'json'])).stdout);
+    expect(timeout.status).toBe('timeout');
+    expect(new URL(page.url()).pathname).toBe(server.route);
+  } finally { await server?.close(); await f.cleanup(); }
+});
+
 test('read, select, comment, submit, CLI retrieve, revise, refresh and restart', async ({ page, browser }) => {
   const f = await fixture();
   let server;

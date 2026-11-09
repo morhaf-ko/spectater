@@ -5,11 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { feedback, feedbackMarkdown } from './storage.js';
+import { startControl } from './control.js';
 
 const assets = new Map([
   ['/app.js', ['../web/app.js', 'text/javascript']],
   ['/theme.js', ['../web/theme.js', 'text/javascript']],
   ['/style.css', ['../web/style.css', 'text/css']],
+  ['/favicon.svg', ['../web/favicon.svg', 'image/svg+xml']],
 ]);
 const shell = await readFile(new URL('../web/index.html', import.meta.url), 'utf8');
 
@@ -17,9 +19,18 @@ export async function startServer(review) {
   const capability = randomBytes(32).toString('hex');
   const route = `/review/${review.state.reviewId}`;
   let origin;
+  let listeners = 0;
+  const clients = new Set();
+  const broadcast = event => {
+    for (const client of clients) {
+      if (client.destroyed || client.writableLength > 65536) { clients.delete(client); client.destroy(); }
+      else client.write(`${JSON.stringify(event)}\n`);
+    }
+  };
+  const unsubscribe = review.subscribe(event => { if (event.type === 'refresh') broadcast(event); });
   const server = http.createServer(async (request, response) => {
     const headers = {
-      'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+      'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
       'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store',
     };
     const send = (code, data, type = 'application/json') => { response.writeHead(code, { ...headers, 'Content-Type': `${type}; charset=utf-8` }); response.end(type === 'application/json' ? JSON.stringify(data) : data); };
@@ -37,6 +48,13 @@ export async function startServer(review) {
       const token = request.headers.authorization || '';
       const expected = `Bearer ${capability}`;
       if (token.length !== expected.length || !timingSafeEqual(Buffer.from(token), Buffer.from(expected))) return send(403, { error: 'Review capability required. Reopen the printed URL.' });
+      if (request.method === 'GET' && url.pathname === `${route}/events`) {
+        response.writeHead(200, { ...headers, 'Content-Type': 'application/x-ndjson; charset=utf-8' });
+        response.write(`${JSON.stringify({ type: 'ready', revision: review.state.revision, listeners })}\n`);
+        clients.add(response);
+        response.once('close', () => clients.delete(response));
+        return;
+      }
       if (request.method === 'GET' && url.pathname === `${route}/state`) return send(200, review.view());
       const batchMatch = url.pathname.startsWith(`${route}/batch/`) && url.pathname.slice(`${route}/batch/`.length);
       if (request.method === 'GET' && batchMatch && /^[a-f0-9-]{36}$/.test(batchMatch)) return send(200, { markdown: feedbackMarkdown(feedback(review.state, batchMatch)) });
@@ -61,8 +79,12 @@ export async function startServer(review) {
   server.maxConnections = 32;
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   origin = `http://127.0.0.1:${server.address().port}`;
-  return { url: `${origin}${route}#${capability}`, origin, route,
-    async close() { server.closeAllConnections(); await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await review.close(); } };
+  const url = `${origin}${route}#${capability}`;
+  let control;
+  try { control = await startControl(review, url, count => { listeners = count; broadcast({ type: 'presence', listeners }); }); }
+  catch (error) { unsubscribe(); server.closeAllConnections(); server.close(); throw error; }
+  return { url, origin, route,
+    async close() { unsubscribe(); await control.close(); for (const client of clients) client.end(); clients.clear(); server.closeAllConnections(); await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await review.close(); } };
 }
 
 export async function openBrowser(url, run = promisify(execFile), platform = process.platform) {

@@ -11,7 +11,7 @@ OpenSpec Markdown is easy for an agent to revise, but reviewing it in a conversa
 - Persist local review state outside canonical artifacts; retain stale and orphaned feedback after revisions.
 - Submit an immutable feedback batch that the operator can copy or the existing agent can read through a CLI. Submission never authorizes implementation, merge or deployment.
 - Offer an on-demand workflow instruction to open the exact change after drafting. Manual invocation remains available; OpenSpec configuration is not an executable completion hook.
-- Build one end-to-end slice before broadening selection support and compatibility.
+- Deliver the full review loop with bounded batch waiting, active-process refresh, browser notifications and a thin on-demand skill; preserve the existing conversation and one-writer boundary.
 
 ## Capabilities
 
@@ -27,6 +27,6 @@ None; the repository has no existing capability specifications.
 
 ## Impact
 
-This is a proposal for a future local CLI/browser package. No application, dependencies, integrations or releases are installed by this change. The proposed runtime, storage and transport defaults are detailed in design.md for operator review before implementation.
+This change delivers a local Bun CLI/browser package, private review state, a bounded existing-agent handoff and an optional first-party skill entrypoint. Runtime, storage and transport contracts are in design.md. Registry publication, releases and implicit global agent setup are outside this change.
 
 The initial scope excludes hosted services, accounts, embedded models, browser source editing, agent/session control, global hooks, background repository scanning and automatic approval. Native OpenSpec remains the discovery/status authority; Markdown remains the content authority.

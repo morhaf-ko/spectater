@@ -6,6 +6,41 @@ history.replaceState(null, '', route);
 let state, selectedId, selection, mode = 'rendered', busy = false;
 let editingId, anchorRect, undoDeletedId, draftReady = false;
 const draftKey = `${route}:draft`;
+let streamActive = false, streamStarting = false;
+function acceptState(next) { if (!state || next.revision >= state.revision) state = next; }
+
+async function watchReview() {
+  if (streamActive || streamStarting) return;
+  streamStarting = true;
+  try {
+    const response = await fetch(`${route}/events`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok || !response.body) throw new Error('Live updates unavailable. Use Refresh source to reconnect.');
+    streamActive = true; streamStarting = false;
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    let pending = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      pending += value;
+      if (pending.length > 65536) throw new Error('Invalid live-update response.');
+      let end;
+      while ((end = pending.indexOf('\n')) >= 0) {
+        const event = JSON.parse(pending.slice(0, end)); pending = pending.slice(end + 1);
+        if (event.listeners !== undefined) {
+          $('listener-status').hidden = !event.listeners;
+          $('listener-status').textContent = event.listeners ? 'Feedback listener waiting' : '';
+        }
+        if ((event.type === 'refresh' || event.type === 'ready') && event.revision > state.revision) {
+          const scroll = { x: scrollX, y: scrollY };
+          acceptState(await api('state')); display(); window.scrollTo(scroll.x, scroll.y);
+          announce('Plan refreshed. Draft text kept.');
+        }
+      }
+    }
+    throw new Error('Live updates disconnected. Use Refresh source to reconnect.');
+  } catch (error) { announce(error.message, true); }
+  finally { streamActive = false; streamStarting = false; }
+}
 
 function announce(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); $('message').classList.toggle('quiet', text === 'Ready.'); }
 async function api(suffix, input) {
@@ -144,7 +179,7 @@ async function operation(fn) {
 }
 async function action(input) {
   await operation(async () => {
-    state = await api('action', { ...input, revision: state.revision });
+    acceptState(await api('action', { ...input, revision: state.revision }));
     if (input.action === 'comment' || input.action === 'edit') { $('comment').value = ''; editingId = undefined; selection = null; persistDraft(); }
     if (input.action === 'delete') undoDeletedId = input.id;
     display(); announce(input.action === 'submit' ? 'Batch saved.' : input.action === 'delete' ? 'Comment deleted.' : 'Saved.');
@@ -184,7 +219,8 @@ function captureSelection() {
   editingId = undefined; anchorRect = range.getBoundingClientRect();
   $('selection').textContent = `${precision === 'exact' ? 'Exact source' : 'Enclosing source span'}: “${selection.quote}”`;
   $('save').disabled = false;
-  openComposer();
+  // Open after the gesture's click so native light-dismiss does not immediately close it.
+  requestAnimationFrame(() => { if (selection) openComposer(); });
 }
 document.addEventListener('mouseup', captureSelection);
 document.addEventListener('keyup', event => { if (event.key === 'Shift' || (!event.shiftKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))) captureSelection(); });
@@ -195,7 +231,7 @@ $('resume-draft').addEventListener('click', () => openComposer());
 $('undo').addEventListener('click', () => action({ action: 'restore', id: undoDeletedId }));
 window.addEventListener('resize', closeComposer);
 $('submit').addEventListener('click', () => action({ action: 'submit' }));
-$('refresh').addEventListener('click', () => operation(async () => { state = await api('refresh', {}); display(); announce('Refreshed. Select text again.'); }));
+$('refresh').addEventListener('click', () => operation(async () => { acceptState(await api('refresh', {})); display(); announce('Refreshed. Select text again.'); void watchReview(); }));
 for (const name of ['rendered', 'source']) $(`${name}-mode`).addEventListener('click', () => { mode = name; displayDocument(); });
 $('copy').addEventListener('click', async () => {
   try { if (!$('export').value) throw new Error('Submit or open a batch first.'); await navigator.clipboard.writeText($('export').value); announce('Export copied.'); }
@@ -206,4 +242,4 @@ $('download').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([$ ('export').value], { type: 'text/markdown' }));
   const link = document.createElement('a'); link.href = url; link.download = 'spectater-feedback.md'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-operation(async () => { state = await api('state'); mode = state.defaultView; display(); restoreDraft(); announce('Ready.'); });
+operation(async () => { state = await api('state'); mode = state.defaultView; display(); restoreDraft(); announce('Ready.'); void watchReview(); });

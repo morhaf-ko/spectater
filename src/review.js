@@ -5,11 +5,17 @@ import { anchor, locate, render } from './markdown.js';
 
 export async function openReview(options, dependencies = {}) {
   const discovery = dependencies.discover || createDiscovery();
-  let review = await discovery(options);
+  let review = dependencies.initial || await discovery(options);
   const store = await openStore(review, dependencies.directory);
   let current = new Map();
   let rendered = new Map();
   let tail = Promise.resolve();
+  const observers = new Set();
+  const notify = event => {
+    for (const observer of observers) {
+      try { observer(event); } catch { observers.delete(observer); }
+    }
+  };
   const serial = fn => { const job = tail.then(fn); tail = job.catch(() => {}); return job; };
   async function refresh(initial) {
     const next = initial || await discovery(options);
@@ -24,6 +30,7 @@ export async function openReview(options, dependencies = {}) {
     await store.commit(state);
     const html = new Map(documents.map(([, snapshot]) => [snapshot.hash, rendered.get(snapshot.hash) ?? render(snapshot.source)]));
     review = next; current = new Map(documents); rendered = html;
+    notify({ type: 'refresh', revision: state.revision });
   }
   function view() {
     const state = store.state;
@@ -45,6 +52,8 @@ export async function openReview(options, dependencies = {}) {
   }
   try { await refresh(review); } catch (error) { await store.close(); throw error; }
   return {
+    directory: store.directory,
+    subscribe(observer) { observers.add(observer); return () => observers.delete(observer); },
     view,
     refresh: () => serial(async () => { await refresh(); return view(); }),
     mutate: input => serial(async () => {
@@ -81,6 +90,7 @@ export async function openReview(options, dependencies = {}) {
       } else throw new Error('Unknown review action.');
       state.revision++;
       await store.commit(state);
+      if (input.action === 'submit') notify({ type: 'batch', sequence: state.batches.at(-1).sequence });
       return view();
     }),
     close: () => serial(() => store.close()),

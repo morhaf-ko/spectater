@@ -205,6 +205,7 @@ test('local HTTP boundary rejects unauthorized, foreign, oversized and arbitrary
   const url = new URL(server.url);
   const headers = { Authorization: `Bearer ${url.hash.slice(1)}`, Origin: url.origin, 'Content-Type': 'application/json' };
   assert.equal((await fetch(`${server.origin}${server.route}/state`)).status, 403);
+  assert.equal((await fetch(`${server.origin}${server.route}/events`)).status, 403);
   const forgedHost = await new Promise((resolve, reject) => {
     const request = http.get(`${server.origin}${server.route}/state`, { headers: { ...headers, Host: 'evil.test' } }, response => { response.resume(); resolve(response.statusCode); });
     request.on('error', reject);

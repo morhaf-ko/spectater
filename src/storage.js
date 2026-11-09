@@ -76,6 +76,7 @@ export async function openStore(review, directory = stateDirectory()) {
     };
     if (state.root !== review.root || state.changeRoot !== review.changeRoot) throw new Error('Stored planning identity mismatch.');
     return {
+      directory,
       get state() { return structuredClone(state); },
       async commit(next) {
         validate(next, review.reviewId);
