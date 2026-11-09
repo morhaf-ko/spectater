@@ -35,6 +35,7 @@
     "test:package": "bun scripts/package-test.js",
     "smoke": "node scripts/smoke.js",
     "benchmark": "bun scripts/benchmark.js",
+    "release:preflight": "node scripts/release-preflight.js",
     "lint": "biome ci .",
     "spec:check": "OPENSPEC_TELEMETRY=0 openspec validate --all --strict --no-interactive",
     "check": "bun run lint && bun run test && bun run test:browser && bun run test:package && bun run smoke && bun run spec:check && git diff --check && bun audit",

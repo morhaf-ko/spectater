@@ -27,6 +27,16 @@ Use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`
 
 In pull requests, say what changed, why, and which checks you ran. Never include review URLs, state files or private documents; review URLs contain a private token.
 
+## Releases
+
+Merging to `main` lets release-please open or update a release pull request; merging that PR tags the release and publishes to npm through [trusted publishing](https://docs.npmjs.com/trusted-publishers). The workflow depends on settings it cannot read or repair itself, so a maintainer checks them with:
+
+```sh
+bun run release:preflight
+```
+
+It verifies that GitHub Actions may open pull requests and that `CI_RUNNER`, `LIGHT_RUNNER` and `RELEASE_RUNNER` are set, and prints the command that fixes each gap. npm's trusted publisher (`npm trust github spectater --repo morhaf-ko/spectater --file release.yml --env npm --allow-publish`) needs 2FA and is set once by the package owner.
+
 ## Code layout
 
 | Path                             | Role                                                                   |
