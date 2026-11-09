@@ -1,0 +1,36 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, realpath, rm, readFile, mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import assert from 'node:assert/strict';
+import { fixture } from '../test/helpers.js';
+import { launchFixture } from './cli-fixture.js';
+
+const exec = promisify(execFile);
+const temp = await realpath(await mkdtemp(path.join(os.tmpdir(), 'spectater-package-')));
+const f = await fixture();
+let cli;
+try {
+  const tarball = path.join(temp, 'spectater.tgz');
+  await exec('bun', ['pm', 'pack', '--filename', tarball, '--ignore-scripts', '--quiet']);
+  const listing = (await exec('tar', ['-tzf', tarball])).stdout.trim().split('\n');
+  for (const file of listing) assert.match(file, /^package\/(bin\/|src\/|web\/|docs\/|README\.md$|LICENSE$|SECURITY\.md$|package\.json$)/);
+  const install = path.join(temp, 'install');
+  await mkdir(install);
+  await writeFile(path.join(install, 'package.json'), JSON.stringify({ private: true, dependencies: { spectater: tarball } }));
+  await exec('bun', ['install', '--cwd', install, '--offline', '--ignore-scripts'], { timeout: 60000 });
+  const bin = path.join(temp, 'install', 'node_modules', 'spectater', 'bin', 'spectater.js');
+  assert.match((await exec(process.execPath, [bin, '--help'])).stdout, /spectater open/);
+  cli = await launchFixture(bin, f);
+  let state = await cli.request('state');
+  const d = state.documents[0], quote = 'exact', start = d.source.indexOf(quote);
+  state = await cli.request('action', { action: 'comment', revision: state.revision, documentId: d.id, hash: d.hash, start, end: start + quote.length, precision: 'exact', quote, body: 'Packaged feedback.' });
+  state = await cli.request('action', { action: 'submit', revision: state.revision });
+  const args = [bin, 'feedback', '--review', state.reviewId, '--batch', state.batches[0].id, '--format', 'json'];
+  const first = await exec(process.execPath, args, { env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile } });
+  assert.equal(JSON.parse(first.stdout).entries[0].body, 'Packaged feedback.');
+  assert.equal(first.stdout, (await exec(process.execPath, args, { env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile } })).stdout);
+  assert.equal(await readFile(f.file, 'utf8'), d.source);
+  console.log(`Package passed: ${listing.length} allowlisted files, temporary offline Bun install, installed help/review/comment/submission/retrieval, stable JSON and unchanged source.`);
+} finally { await cli?.close(); await f.cleanup(); await rm(temp, { recursive: true, force: true }); }

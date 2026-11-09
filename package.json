@@ -1,0 +1,31 @@
+{
+  "name": "spectater",
+  "version": "0.1.0",
+  "description": "Local selected-text review for canonical OpenSpec changes",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.4.4 <1.5"
+  },
+  "packageManager": "bun@1.4.4",
+  "bin": {
+    "spectater": "bin/spectater.js"
+  },
+  "files": ["bin/", "src/", "web/", "docs/", "README.md", "LICENSE", "SECURITY.md"],
+  "scripts": {
+    "test": "bun test --timeout 30000 test/*.test.js",
+    "test:browser": "bun --bun node_modules/@playwright/test/cli.js test",
+    "test:package": "bun scripts/package-test.js",
+    "smoke": "bun scripts/smoke.js",
+    "benchmark": "bun scripts/benchmark.js"
+  },
+  "dependencies": {
+    "remark-gfm": "4.0.1",
+    "remark-parse": "11.0.0",
+    "unified": "11.0.5"
+  },
+  "devDependencies": {
+    "@fission-ai/openspec": "1.16.1",
+    "@playwright/test": "1.65.0"
+  }
+}

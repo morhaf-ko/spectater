@@ -6,6 +6,21 @@ Let an operator read one explicitly selected OpenSpec change while preserving na
 
 ## ADDED Requirements
 
+### Requirement: Optional reader preferences
+The system SHALL provide built-in defaults without requiring a configuration file. It SHALL allow an optional user-selected configuration to choose the initial document view, browser-opening preference and private state location. It MUST reject invalid settings visibly and MUST NOT expose settings that disable filesystem, browser or revision protections.
+
+#### Scenario: No configuration
+- **WHEN** the default configuration file is absent
+- **THEN** the reader uses rendered view, a browser-opening attempt and private platform review storage
+
+#### Scenario: Partial or invalid preferences
+- **WHEN** the operator supplies a partial valid configuration
+- **THEN** omitted preferences retain their defaults and explicit no-open mode suppresses browser opening
+
+#### Scenario: Invalid preferences
+- **WHEN** a selected configuration has invalid syntax, unknown settings or unsupported values
+- **THEN** the command reports the configuration error and does not start a review
+
 ### Requirement: Native discovery
 The system SHALL use native OpenSpec root, schema, artifact-path and status discovery for the explicit project and change. It MUST preserve explicit store selection and report unsupported CLI contracts or native failures without a replacement discovery engine.
 

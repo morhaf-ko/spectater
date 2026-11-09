@@ -2,6 +2,8 @@
 
 ## Context
 
+Implementation was authorized after proposal review. The operator subsequently selected Bun instead of Node for SpecTater, requested current stable packages and Renovate, and requested optional configuration with built-in defaults. These implementation inputs supersede the proposed Node runtime below. The implemented package pins Bun 1.4.4, uses stable OpenSpec 1.16.1 as a development tool and also recognizes the exercised 1.15.0 contract. README.md describes the supported boundary and configuration. No publication or release is authorized by implementation approval.
+
 See proposal.md for motivation. This repository has no application runtime. The design is for operator Markdown review; no proposed default below authorizes implementation. Native discovery was exercised with OpenSpec 1.15.0 in the planning worktree. Other compatibility cases below are implementation acceptance targets, not verified support.
 
 ## Goals / Non-goals
@@ -98,6 +100,8 @@ Browser routes accept opaque document IDs, never arbitrary paths. Build a fixed 
 - Atomic local persistence does not provide shared collaboration → one writer per identity; concurrent browser writes use a state revision precondition and conflicts retain drafts.
 
 ## Migration plan and acceptance commands
+
+For the authorized Bun implementation, the commands below map to `bun install --frozen-lockfile --ignore-scripts`, `bun run test`, `bun run test:browser`, `bun run test:package` and `bun run smoke -- --fixture local-review --no-open`. `bun run benchmark` measures a small local fixture. Native validation uses the pinned development OpenSpec executable. These replace npm command interfaces without changing their required proof. Actual exercised evidence is recorded in docs/verification.md.
 
 No deployment/migration applies to this planning change. Future implementation starts only after operator authorization, in this order:
 
