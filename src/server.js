@@ -18,7 +18,7 @@ const shell = await readFile(new URL('../web/index.html', import.meta.url), 'utf
 
 export async function startServer(review, options = {}) {
   const capability = randomBytes(32).toString('hex');
-  const route = `/review/${review.state.reviewId}`;
+  const route = `/review/${encodeURIComponent(review.view().change)}`;
   let origin;
   let listeners = 0;
   let watchStatus = { automatic: false };

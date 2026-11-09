@@ -119,7 +119,7 @@ try {
       let url;
       if (active) {
         const parsed = new URL(active.url);
-        if (parsed.protocol !== 'http:' || parsed.hostname !== '127.0.0.1' || parsed.pathname !== '/review/' + manifest.reviewId || !/^#[a-f0-9]{64}$/.test(parsed.hash)) throw new Error('Invalid active review route.');
+        if (parsed.protocol !== 'http:' || parsed.hostname !== '127.0.0.1' || !['/review/' + encodeURIComponent(manifest.change), '/review/' + manifest.reviewId].includes(parsed.pathname) || !/^#[a-f0-9]{64}$/.test(parsed.hash)) throw new Error('Invalid active review route.');
         url = active.url; process.stdout.write('Reused active review.\n');
       } else {
         const review = await openReview({ ...values, defaultView: config.defaultView }, { directory, discover: discovery, initial: manifest });

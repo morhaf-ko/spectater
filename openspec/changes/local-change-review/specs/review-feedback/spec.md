@@ -32,6 +32,10 @@ The system SHALL bind each comment to a document path, original-byte hash, immut
 - **WHEN** a rendered selection contains markup transformations that prevent exact boundary mapping
 - **THEN** the reader labels an enclosing source span or asks for source-view selection rather than claiming exact offsets
 
+#### Scenario: Selection across formatting or paragraphs
+- **WHEN** a rendered selection crosses mapped text leaves, formatting or paragraph boundaries
+- **THEN** the composer opens and saves the contiguous enclosing Markdown range with a visible precision label, without inventing an exact rendered-to-source match
+
 ### Requirement: Revision conflict detection
 The system SHALL recheck document revisions on comment save and batch submission. It MUST reject a write based on changed source, preserve the unsaved draft and offer refresh rather than attaching it to unseen bytes.
 

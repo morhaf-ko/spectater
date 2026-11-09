@@ -174,11 +174,15 @@ test('rendered precision, source fallback, Unicode/CRLF, inert Markdown and clip
       const p = el.querySelector('p'); const range = document.createRange(); range.selectNodeContents(p);
       window.getSelection().removeAllRanges(); window.getSelection().addRange(range); document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     });
-    await expect(page.locator('#selection')).toContainText('crosses rendered spans'); await expect(page.locator('#save')).toBeDisabled();
+    await expect(page.locator('#selection')).toContainText('Enclosing source span');
+    await expect(page.locator('#comment')).toBeFocused();
+    await page.locator('#comment').fill('Whole formatted paragraph.'); await page.locator('#save').click();
+    await expect(page.locator('#comments')).toContainText('Whole formatted paragraph.');
+    expect(review.state.comments[2].slice).toBe('Plain text with **bold words**.');
     await selectSource(page, '😀 Unicode'); await page.locator('#comment').fill('Unicode source.'); await page.locator('#save').click();
     await expect(page.locator('#comments')).toContainText('Unicode source.');
-    expect(review.state.comments[2].slice).toBe('😀 Unicode');
-    expect(review.state.comments[2].start).toBe(source.indexOf('😀 Unicode'));
+    expect(review.state.comments[3].slice).toBe('😀 Unicode');
+    expect(review.state.comments[3].start).toBe(source.indexOf('😀 Unicode'));
     await page.locator('#submit').click(); await expect(page.locator('#message')).toContainText('Batch saved.');
     await page.locator('#copy').click(); await expect(page.locator('#message')).toContainText('Clipboard unavailable.');
     const downloaded = page.waitForEvent('download'); await page.locator('#download').click();
@@ -347,5 +351,58 @@ test('selection popover supports immediate typing, cached drafts, editing, delet
     await page.getByRole('button', { name: 'Batch 1 · 1 comments' }).click();
     await expect(page.locator('#export')).toHaveValue(exported);
     expect(await readFile(f.file, 'utf8')).toBe(sample);
+  } finally { await server?.close(); await f.cleanup(); }
+});
+
+
+test('rendered multi-paragraph selections open the composer and preserve enclosing Markdown offsets', async ({ page }) => {
+  const source = '# Paragraph selection\r\n\r\nAlpha **bold words** and a [safe link](https://example.org) finish the first paragraph.\r\n\r\nSecond paragraph has an &amp; entity, 😀 Unicode, and omega at the end.\r\n\r\n- [x] Generated marker fallback\r\n';
+  const f = await fixture(source); let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+    await page.goto(server.url); await expect(page.locator('#message')).toContainText('Ready.');
+    expect(new URL(page.url()).pathname).toBe('/review/example');
+    const points = await page.locator('#rendered').evaluate(area => {
+      const first = area.querySelector('p [data-start]').firstChild;
+      const last = area.querySelectorAll('p')[1].querySelector('[data-start]').firstChild;
+      const a = document.createRange(); a.setStart(first, 0); a.setEnd(first, 1);
+      const b = document.createRange(); const end = last.data.indexOf('omega') + 5; b.setStart(last, end - 1); b.setEnd(last, end);
+      const startRect = a.getBoundingClientRect(), endRect = b.getBoundingClientRect();
+      return { x1: startRect.left + 1, y1: startRect.top + startRect.height / 2, x2: endRect.right - 1, y2: endRect.top + endRect.height / 2 };
+    });
+    await page.mouse.move(points.x1, points.y1); await page.mouse.down();
+    await page.mouse.move(points.x2, points.y2, { steps: 20 }); await page.mouse.up();
+    await expect(page.getByRole('dialog', { name: 'Add comment' })).toBeVisible();
+    await expect(page.locator('#comment')).toBeFocused();
+    await expect(page.locator('#selection')).toContainText('Enclosing source span');
+    await page.keyboard.type('Feedback across two paragraphs.');
+    await mkdir('.tmp/explore-spectater/screenshots', { recursive: true });
+    await page.screenshot({ path: '.tmp/explore-spectater/screenshots/multi-paragraph-popover.png', fullPage: true });
+    await page.locator('#save').click();
+    await expect(page.locator('#comments')).toContainText('Feedback across two paragraphs.');
+    const comment = review.state.comments[0];
+    expect(comment.precision).toBe('enclosing');
+    expect(comment.slice).toContain('**bold words**'); expect(comment.slice).toContain('[safe link](https://example.org)');
+    expect(comment.slice).toContain('\r\n\r\nSecond paragraph');
+    expect(source.slice(comment.start, comment.end)).toBe(comment.slice);
+    // Element boundaries occur when selecting whole blocks instead of text nodes.
+    await page.locator('#rendered').evaluate(area => {
+      const paragraphs = area.querySelectorAll('p'); const range = document.createRange();
+      range.setStart(paragraphs[0], 0); range.setEnd(paragraphs[1], paragraphs[1].childNodes.length);
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+    await expect(page.locator('#comment')).toBeFocused();
+    await page.locator('#comment').fill('Whole blocks.'); await page.locator('#save').click();
+    await expect(page.locator('#comments')).toContainText('Whole blocks.');
+    expect(review.state.comments[1].slice).toBe(source.slice(source.indexOf('Alpha'), source.indexOf('\r\n\r\n- [x]')));
+    await page.locator('#rendered li').evaluate(li => {
+      const range = document.createRange(); range.selectNodeContents(li);
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+    await expect(page.locator('#message')).toContainText('unmapped content');
+    await expect(page.locator('#save')).toBeDisabled();
+    expect(await readFile(f.file, 'utf8')).toBe(source);
   } finally { await server?.close(); await f.cleanup(); }
 });

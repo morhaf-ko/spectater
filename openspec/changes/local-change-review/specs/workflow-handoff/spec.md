@@ -61,6 +61,10 @@ The system SHALL attempt to open the selected review route only after local read
 - **WHEN** the operator invokes the open command with an explicit project and change
 - **THEN** the browser attempt targets that exact change after the listener is ready
 
+#### Scenario: Readable review address
+- **WHEN** the tool opens a selected change
+- **THEN** its URL path uses the encoded change name, internal identity still isolates canonical roots/worktrees, and capability authorization remains required for review data
+
 #### Scenario: Browser unavailable
 - **WHEN** the platform opener fails or no-open mode is selected
 - **THEN** the process preserves the ready review and prints its manual access URL

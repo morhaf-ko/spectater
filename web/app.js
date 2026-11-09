@@ -228,15 +228,35 @@ function captureSelection() {
   if (mode === 'source') {
     start = offset(area, range.startContainer, range.startOffset); end = offset(area, range.endContainer, range.endOffset); precision = 'exact';
   } else {
-    const mapped = node => (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement)?.closest('[data-start]');
-    const first = mapped(range.startContainer), last = mapped(range.endContainer);
-    if (!first || first !== last) { resetSelection(); $('selection').textContent = 'Selection crosses rendered spans. Use Source.'; announce($('selection').textContent); return; }
-    precision = first.dataset.precision;
-    start = Number(first.dataset.start); end = Number(first.dataset.end);
-    if (precision === 'exact') { end = start + offset(first, range.endContainer, range.endOffset); start += offset(first, range.startContainer, range.startOffset); }
+    const parts = [];
+    const common = range.commonAncestorContainer;
+    const scope = common.nodeType === Node.ELEMENT_NODE ? common : common.parentElement;
+    const spans = scope.matches('[data-start]') ? [scope] : scope.querySelectorAll('[data-start]');
+    for (const span of spans) {
+      if (!range.intersectsNode(span)) continue;
+      const bounds = document.createRange(); bounds.selectNodeContents(span);
+      const overlap = range.cloneRange();
+      if (range.compareBoundaryPoints(Range.START_TO_START, bounds) < 0) overlap.setStart(bounds.startContainer, bounds.startOffset);
+      if (range.compareBoundaryPoints(Range.END_TO_END, bounds) > 0) overlap.setEnd(bounds.endContainer, bounds.endOffset);
+      if (!overlap.collapsed && overlap.toString().length) parts.push({ span, overlap });
+    }
+    const first = parts[0], last = parts.at(-1);
+    let unmapped = !first;
+    if (first) {
+      const before = range.cloneRange(); before.setEnd(first.overlap.startContainer, first.overlap.startOffset);
+      const after = range.cloneRange(); after.setStart(last.overlap.endContainer, last.overlap.endOffset);
+      unmapped = Boolean(before.toString().trim() || after.toString().trim());
+    }
+    if (unmapped) { resetSelection(); $('selection').textContent = 'This selection has unmapped content. Use Source.'; announce($('selection').textContent); return; }
+    start = Number(first.span.dataset.start); end = Number(last.span.dataset.end);
+    if (first.span.dataset.precision === 'exact') start += offset(first.span, first.overlap.startContainer, first.overlap.startOffset);
+    if (last.span.dataset.precision === 'exact') end = Number(last.span.dataset.start) + offset(last.span, last.overlap.endContainer, last.overlap.endOffset);
+    precision = parts.length === 1 && first.span.dataset.precision === 'exact' ? 'exact' : 'enclosing';
   }
+  if (range.toString().length > 10000 || end - start > 10000) { resetSelection(); announce('Selection exceeds 10,000 characters. Select a shorter passage.', true); return; }
   selection = { documentId: d.id, hash: d.hash, start, end, precision, quote: range.toString() };
-  editingId = undefined; anchorRect = range.getBoundingClientRect();
+  editingId = undefined;
+  anchorRect = [...range.getClientRects()].filter(rect => rect.width && rect.height && rect.bottom > 0 && rect.top < innerHeight).at(-1) || range.getBoundingClientRect();
   $('selection').textContent = `${precision === 'exact' ? 'Exact source' : 'Enclosing source span'}: “${selection.quote}”`;
   $('save').disabled = false;
   // Open after the gesture's click so native light-dismiss does not immediately close it.

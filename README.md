@@ -17,12 +17,12 @@ For a checkout's development CLI, `bun run` puts the pinned development OpenSpec
 bun run bin/spectater.js open --project /path/to/project --change change-id --no-open
 ```
 
-No registry release is published by these instructions. Automatic browser opening is implemented for macOS; use `--no-open` and the printed URL elsewhere. Keep that capability URL private. Stop with Ctrl-C; saved feedback survives restart.
+No registry release is published by these instructions. Automatic browser opening is implemented for macOS; use `--no-open` and the printed URL elsewhere. The route uses the change name; internal review IDs still isolate worktrees. Keep the initial capability URL private; its secret fragment disappears after opening. Stop with Ctrl-C; saved feedback survives restart.
 
 ## Review loop
 
 1. Read the selected change's native artifact list and rendered or exact source view.
-2. Select text, type in the popover and save a comment. Rendered selections show exact or enclosing-span precision; use Source for selections across spans or blocks.
+2. Select text, type in the popover and save a comment. Rendered selections show exact or enclosing-span precision; selections across formatting and paragraphs use a labeled enclosing Markdown range.
 3. Submit a batch. An existing waiting conversation receives it; otherwise it stays queued. Copy its retrieval command or Markdown export for manual handoff.
 4. Have the existing agent read the explicit batch and revise Markdown within its existing authorization.
 5. Source updates automatically after selected-change saves. Old comments become stale or orphaned; reattachment is explicit and preserves original anchors. Submitted batches remain unchanged.
@@ -64,7 +64,7 @@ Review storage defaults to `~/Library/Application Support/SpecTater` on macOS an
 
 The reader uses native root/schema/status discovery, including custom artifact paths, explicit/declared stores and isolated worktree identities. It does not scan siblings or follow context members. Global-default stores require explicit selection.
 
-Markdown uses CommonMark/GFM parsing. Raw HTML and diagrams remain inert, remote images do not load and relative document links have no navigation route. Rendered selections spanning multiple source leaves require Source view. Files must be strict UTF-8 and no larger than 1 MiB; one review allows 128 artifact paths and 16 MiB of current source.
+Markdown uses CommonMark/GFM parsing. Raw HTML and diagrams remain inert, remote images do not load and relative document links have no navigation route. Rendered selections across source leaves use enclosing-span precision; unmapped boundaries require Source view. Files must be strict UTF-8 and no larger than 1 MiB; one review allows 128 artifact paths and 16 MiB of current source.
 
 The server binds `127.0.0.1` with capability authorization, Host/Origin checks and a fixed manifest. Review storage is private and outside the repository. macOS is the exercised platform. Linux permissions and manual opening are implemented but remain unverified on Linux; Windows private storage and browser opening are unsupported. See [security](SECURITY.md) and [verification](docs/verification.md).
 

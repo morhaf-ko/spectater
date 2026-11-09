@@ -25,6 +25,7 @@ try {
   assert.match((await exec(process.execPath, [bin, 'workflow'])).stdout, /feedback --review/);
   assert.match((await exec(process.execPath, [bin, 'skill'])).stdout, /name: spectater/);
   cli = await launchFixture(bin, f);
+  assert.equal(new URL(cli.url).pathname, '/review/example');
   let state = await cli.request('state');
   const d = state.documents[0], quote = 'exact', start = d.source.indexOf(quote);
   state = await cli.request('action', { action: 'comment', revision: state.revision, documentId: d.id, hash: d.hash, start, end: start + quote.length, precision: 'exact', quote, body: 'Packaged feedback.' });

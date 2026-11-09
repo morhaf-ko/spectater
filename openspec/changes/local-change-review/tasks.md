@@ -37,3 +37,9 @@ The operator authorized implementation after proposal review. Runtime and comman
 - [x] 5.2 Persist observed received/working/replied activity separately from immutable batches; test queued submission, no-listener messaging, repeated retrieval, explicit agent status/replies and restart persistence.
 - [x] 5.3 Expose the complete loop in the browser and current CLI/skill guidance without hooks, model interruption, silent session control or false addressed/approval claims; test the installed package and headless Chrome round trip.
 - [x] 5.4 Run the integrated acceptance gates, retain existing preview data, then stay in this conversation's bounded feedback loop for the operator's final review.
+
+## 6. Refine review navigation and selection
+
+- [x] 6.1 Use the encoded change name in the review route while preserving canonical state identity, active-process reuse and capability checks; verify CLI/package and HTTP contracts.
+- [x] 6.2 Open the composer for rendered selections across formatting and paragraphs using explicit enclosing-source precision; verify real pointer and element-boundary selections, transformed text, unmapped fallback and saved source offsets in headless Chrome.
+- [x] 6.3 Run integrated checks, retain saved preview feedback and provide the updated review link for operator testing.

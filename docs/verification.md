@@ -8,7 +8,7 @@ Exercised environment: macOS, Bun 1.4.4, external OpenSpec 1.16.1, installed hea
 | --- | --- |
 | `bun install --frozen-lockfile --ignore-scripts` | Passed; 129 packages checked, no lockfile changes |
 | `bun run test` | 22 passed, zero failed: discovery, native stores/worktrees, source/security/persistence, comment lifecycle, directory watching, durable activity and private agent-loop transport |
-| `bun run test:browser` | Nine passed in a dedicated headless Chrome: actual drag/double-click, favicon, wait/submit/automatic source updates/replies, revision conflicts, restart, themes, draft recovery, comment editing/deletion and viewport behavior |
+| `bun run test:browser` | Ten passed in a dedicated headless Chrome: actual drag/double-click and multi-paragraph selection, readable routes, favicon, wait/submit/automatic source updates/replies, revision conflicts, restart, themes, draft recovery, comment editing/deletion and viewport behavior |
 | `bun run test:package` | 22 allowlisted files; temporary offline Bun install; installed skill/workflow/open/wait/retrieval/reply/reuse/refresh passed |
 | `bun run smoke -- --fixture local-review --no-open` | Owned CLI readiness, manifest, persistent state, SIGTERM shutdown and unchanged source passed |
 | Native strict OpenSpec validation | local-change-review valid=true, issues=[] |
@@ -21,6 +21,8 @@ The locked set's latest registry audit reported no vulnerabilities across 129 pa
 
 Temporary fixture roots/state and XDG-isolated store registries are removed by their owning tests. Actual Git worktrees sharing a slug retain distinct review identities. No user registry, global skill/hook/plugin, real project source, remote account, provider or production service is modified by tests.
 
+The readable route retains the canonical internal review ID and capability checks. Multi-paragraph real-pointer and whole-block element-boundary selections preserve contiguous Markdown offsets, including formatting, links, entities, Unicode and CRLF. A desktop screenshot of the multi-paragraph composer was visually inspected. The added browser checks and HTTP assertion passed after focused rechecks corrected an asynchronous test wait and a test variable reference.
+
 The real-pointer regression first reproduced the missing popover: opening during mouseup let the browser's subsequent native click dismiss it. Opening after that gesture passes actual drag and double-click checks. Synthetic ranges remain useful for exact offsets but are not the only interaction evidence.
 
 The agent-loop browser test starts a bounded CLI wait, submits in the browser, receives the durable immutable batch, reports working explicitly, changes fixture Markdown, observes automatic source refresh/stale comments with draft text preserved, then posts a plain-text reply without disturbing the open composer. Directory-event tests cover direct writes, atomic file replacement, native artifact additions/removals, unchanged-event suppression, shutdown and recovery after an escaping symlink is rejected. Durable activity survives restart separately from immutable batches; repeated receipts/replies are idempotent. Other tests cover queued-before-wait delivery, repeatable cursor reads, timeout bounds, disconnect cancellation, stopped listeners, same-user socket permissions, regular-file refusal, active reuse and offline batch retrieval. Graceful transport shutdown and monotonic state acceptance are exercised with reloads.
@@ -31,7 +33,7 @@ Light/dark desktop 1440×900 and mobile 390×844 screenshots include source and 
 
 Canonical Markdown stays authoritative. Saved comments, snapshots and batches survive restarts in private disk state. Comment deletion is recoverable and submitted batches stay immutable. Unsaved sessionStorage drafts are weaker: same-tab/origin reload recovery depends on available browser storage, and changed hashes require a new selection. Worktree relocation does not automatically migrate review identity; keep private state and Git backups rather than resetting it.
 
-macOS is the exercised platform. Linux private storage/IPC/manual opening remain unverified on Linux; Windows private storage/IPC and automatic opening are unsupported. Cross-leaf rendered selection requires Source. Publication, hosted CI, Renovate activation and independent release security review remain outside local implementation acceptance. No release readiness or ability to wake a stopped model is claimed.
+macOS is the exercised platform. Linux private storage/IPC/manual opening remain unverified on Linux; Windows private storage/IPC and automatic opening are unsupported. Cross-leaf rendered selection uses enclosing-source precision; unmapped boundary content requires Source. Publication, hosted CI, Renovate activation and independent release security review remain outside local implementation acceptance. No release readiness or ability to wake a stopped model is claimed.
 
 ## Performance sample
 
