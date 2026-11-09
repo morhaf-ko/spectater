@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>SpecTater review</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/style.css">
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="wordmark">
+        <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+          <title>A spec-tater with opinions</title>
+          <path
+            class="spud"
+            d="M12 5C5 8 8 14 5 20S7 35 17 36s16-5 16-14S28 1 19 4c-3 1-4-1-7 1Z"
+          />
+          <g class="logo-ink">
+            <circle cx="14" cy="18" r="5" />
+            <circle cx="27" cy="18" r="5" />
+            <path d="M19 18h3M5 16l4 1m23 0 3-1M17 28q5 3 9-1M11 10l4-1" />
+            <path d="M15 17v2m11-2v2" />
+          </g>
+        </svg><span>SpecTater</span>
+      </div>
+      <div class="header-actions">
+        <button
+          id="theme"
+          class="icon-button"
+          type="button"
+          aria-label="Dark mode"
+          aria-pressed="false"
+        >
+          <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20.5 14A8.5 8.5 0 0 1 10 3.5 8.5 8.5 0 1 0 20.5 14Z" />
+          </svg><svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+            />
+          </svg>
+        </button>
+        <button id="refresh" type="button">Refresh source</button>
+      </div>
+    </header>
+    <p id="message" role="status" aria-live="polite">Loading…</p>
+    <div class="workspace">
+      <nav aria-label="Change artifacts">
+        <h2 id="change">Artifacts</h2>
+        <div id="artifacts"></div>
+        <details class="review-details">
+          <summary>Details</summary>
+          <p id="identity"></p>
+          <p id="location"></p>
+          <p id="revision"></p>
+          <div id="artifact-statuses"></div>
+          <button id="theme-system" type="button" hidden>Use system theme</button>
+          <p>Review feedback does not grant approval.</p>
+        </details>
+      </nav>
+      <main id="main">
+        <div class="document-toolbar">
+          <h1 id="document-name">Choose an artifact</h1>
+          <fieldset aria-label="Document view">
+            <button type="button" id="rendered-mode" aria-pressed="true">Rendered</button
+            ><button type="button" id="source-mode" aria-pressed="false">Source</button>
+          </fieldset>
+        </div>
+        <details id="changes">
+          <summary>What changed?</summary>
+          <p id="changes-note" class="note"></p>
+          <div id="changed-files"></div>
+          <pre id="change-diff" hidden></pre>
+        </details>
+        <article id="rendered" class="prose"></article>
+        <section id="source-view" aria-label="Markdown source" hidden>
+          <pre id="source-lines" aria-hidden="true"></pre>
+          <pre id="source" hidden></pre>
+        </section>
+      </main>
+      <aside aria-label="Review feedback">
+        <h2>Comments</h2>
+        <p id="source-status" class="note"></p>
+        <p id="listener-status" class="note"></p>
+        <p id="comment-hint" class="note">Select text to comment.</p>
+        <button id="resume-draft" type="button" hidden>Resume draft</button>
+        <div id="undo-delete" hidden>
+          <span>Comment deleted.</span><button id="undo" type="button">Undo</button>
+        </div>
+        <div id="comments"></div>
+        <details id="deleted-comments" hidden>
+          <summary>Deleted comments</summary>
+          <div id="deleted-list"></div>
+        </details>
+        <div class="submission">
+          <p id="queue-editing" class="note" hidden></p>
+          <button id="submit" type="button" hidden>Submit batch</button>
+          <div id="receipts"></div>
+          <button id="review-lifecycle" type="button">End review</button>
+          <details id="export-details" hidden>
+            <summary>More · copy or download</summary>
+            <code id="retrieval-command"></code>
+            <label class="sr-only" for="export">Batch export</label>
+            <textarea id="export" rows="5" readonly></textarea>
+            <div class="export-actions">
+              <button id="copy" type="button">Copy export</button
+              ><button id="download" type="button">Download export</button>
+            </div>
+          </details>
+        </div>
+      </aside>
+    </div>
+    <div id="comment-popover" popover role="dialog" aria-labelledby="comment-title">
+      <div class="popover-header">
+        <h2 id="comment-title">Add comment</h2>
+        <button
+          type="button"
+          class="icon-button"
+          popovertarget="comment-popover"
+          popovertargetaction="hide"
+          aria-label="Close comment"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>
+        </button>
+      </div>
+      <form id="comment-form">
+        <label class="sr-only" for="comment">Comment on selected text</label>
+        <p id="selection" class="selection">Select text to comment.</p>
+        <textarea
+          id="comment"
+          rows="3"
+          maxlength="10000"
+          required
+          placeholder="Add a comment…"
+        ></textarea>
+        <button id="save" type="submit" disabled>Save comment</button>
+      </form>
+      <p id="composer-error" class="note" role="alert" hidden></p>
+    </div>
+  </body>
+</html>

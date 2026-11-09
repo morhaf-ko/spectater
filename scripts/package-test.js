@@ -1,0 +1,163 @@
+import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { fixture } from '../test/helpers.js';
+import { launchFixture } from './cli-fixture.js';
+
+const exec = promisify(execFile);
+const temp = await realpath(await mkdtemp(path.join(os.tmpdir(), 'spectater-package-')));
+const f = await fixture();
+let cli;
+try {
+  const tarball = path.join(temp, 'spectater.tgz');
+  await exec('bun', ['pm', 'pack', '--filename', tarball, '--ignore-scripts', '--quiet']);
+  const listing = (await exec('tar', ['-tzf', tarball])).stdout.trim().split('\n');
+  for (const file of listing)
+    assert.match(
+      file,
+      /^package\/(bin\/|src\/|web\/|docs\/|integration\/spectater\/SKILL\.md$|README\.md$|LICENSE$|SECURITY\.md$|package\.json$)/,
+    );
+  const install = path.join(temp, 'install');
+  await mkdir(install);
+  await writeFile(
+    path.join(install, 'package.json'),
+    JSON.stringify({ private: true, dependencies: { spectater: tarball } }),
+  );
+  await exec('bun', ['install', '--cwd', install, '--ignore-scripts'], {
+    timeout: 60000,
+  });
+  const bin = path.join(temp, 'install', 'node_modules', 'spectater', 'bin', 'spectater.js');
+  assert.match((await exec(process.execPath, [bin, '--help'])).stdout, /spectater open/);
+  assert.match((await exec(process.execPath, [bin, 'workflow'])).stdout, /feedback --review/);
+  assert.match((await exec(process.execPath, [bin, 'skill'])).stdout, /name: spectater/);
+  cli = await launchFixture(bin, f);
+  assert.equal(new URL(cli.url).pathname, '/review/example');
+  let state = await cli.request('state');
+  const d = state.documents[0],
+    quote = 'exact',
+    start = d.source.indexOf(quote);
+  state = await cli.request('action', {
+    action: 'comment',
+    revision: state.revision,
+    documentId: d.id,
+    hash: d.hash,
+    start,
+    end: start + quote.length,
+    precision: 'exact',
+    quote,
+    body: 'Packaged feedback.',
+  });
+  state = await cli.request('action', { action: 'submit', revision: state.revision });
+  const original = state.batches[0].id;
+  state = await cli.request('action', {
+    action: 'edit-batch',
+    id: original,
+    revision: state.revision,
+  });
+  assert.equal(state.queue[original].status, 'editing');
+  state = await cli.request('action', { action: 'submit', revision: state.revision });
+  assert.equal(state.queue[original].status, 'superseded');
+  const activeBatch = state.batches[1].id;
+  const args = [
+    bin,
+    'feedback',
+    '--review',
+    state.reviewId,
+    '--batch',
+    activeBatch,
+    '--format',
+    'json',
+  ];
+  const first = await exec(process.execPath, args, {
+    env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile },
+  });
+  assert.equal(JSON.parse(first.stdout).entries[0].body, 'Packaged feedback.');
+  assert.equal(
+    first.stdout,
+    (
+      await exec(process.execPath, args, {
+        env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile },
+      })
+    ).stdout,
+  );
+  assert.equal(await readFile(f.file, 'utf8'), d.source);
+  const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
+  const cursor = JSON.parse(
+    (
+      await exec(
+        process.execPath,
+        [
+          bin,
+          'feedback',
+          '--review',
+          state.reviewId,
+          '--after',
+          '0',
+          '--wait',
+          '0',
+          '--format',
+          'json',
+        ],
+        { env },
+      )
+    ).stdout,
+  );
+  assert.equal(cursor.status, 'batch');
+  assert.equal(cursor.sequence, 2);
+  await exec(
+    process.execPath,
+    [bin, 'reply', '--review', state.reviewId, '--batch', activeBatch, '--status', 'working'],
+    { env },
+  );
+  const message = path.join(temp, 'reply.txt');
+  await writeFile(message, 'Packaged agent reply.');
+  await exec(
+    process.execPath,
+    [bin, 'reply', '--review', state.reviewId, '--batch', activeBatch, '--message-file', message],
+    { env },
+  );
+  assert.equal(
+    (await cli.request('state')).activity[activeBatch].replies[0].body,
+    'Packaged agent reply.',
+  );
+  const reused = await exec(
+    process.execPath,
+    [bin, 'open', '--project', f.project, '--change', 'example', '--no-open'],
+    { env },
+  );
+  assert.match(reused.stdout, /Reused active review/);
+  const revised = `Package revision.\n\n${d.source}`;
+  await writeFile(f.file, revised);
+  const receipt = JSON.parse(
+    (await exec(process.execPath, [bin, 'refresh', '--review', state.reviewId], { env })).stdout,
+  );
+  assert.equal(receipt.status, 'refreshed');
+  assert.equal((await cli.request('state')).documents[0].source, revised);
+  const ended = JSON.parse(
+    (await exec(process.execPath, [bin, 'end', '--review', state.reviewId], { env })).stdout,
+  );
+  assert.equal(ended.status, 'ended');
+  await cli.close();
+  cli = null;
+  await assert.rejects(
+    exec(
+      process.execPath,
+      [bin, 'open', '--project', f.project, '--change', 'example', '--no-open'],
+      { env },
+    ),
+    /Use --reopen/,
+  );
+  cli = await launchFixture(bin, f, { reopen: true });
+  assert.equal((await cli.request('state')).endedAt, undefined);
+  assert.equal((await cli.request('state')).batches.length, 2);
+  console.log(
+    `Package passed: ${listing.length} allowlisted files, temporary Bun install, installed skill/workflow/open/wait/retrieval/queue replacement/reply/reuse/refresh/end/reopen; source changes limited to the explicit fixture revision.`,
+  );
+} finally {
+  await cli?.close();
+  await f.cleanup();
+  await rm(temp, { recursive: true, force: true });
+}

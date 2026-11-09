@@ -4,7 +4,7 @@ Read README.md and the selected OpenSpec change before working. Keep instruction
 
 This is an OpenSpec-only local developer tool. Preserve canonical Markdown and use native OpenSpec root, schema and status discovery. Never treat task completion, comments or viewer buttons as production or merge approval.
 
-Current authority is exploration and proposal only. Do not implement application code, add runtime dependencies, install hooks, deploy or publish releases before the operator reviews the proposal and authorizes implementation.
+The operator approved implementation of local-change-review. Keep implementation within its contracts. Hooks, deployment, registry publication and releases require separate authorization.
 
 Favor existing platform capabilities, deterministic rendering and a small dependency surface. No accounts, hosted backend, embedded AI or agent lifecycle controller in the initial scope.
 

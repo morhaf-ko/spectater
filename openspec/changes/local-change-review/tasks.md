@@ -1,0 +1,65 @@
+# Tasks
+
+The operator authorized implementation after proposal review. Runtime and command updates are recorded in design.md; the implementation uses Bun. Checked items record implementation evidence and do not grant publication, merge or production authority. Verification interfaces and limits are documented in docs/verification.md.
+
+## 1. Establish implementation inputs
+
+- [x] 1.1 Record operator authorization, approved defaults, Bun/OpenSpec/browser versions, dependency/license choices and exact acceptance scripts in the implementation mission ledger before installing anything; verify the record covers this proposal and no live actions.
+- [x] 1.2 Create the smallest CLI/browser package and approved lockfile with Bun test entrypoint; verify `bun install --frozen-lockfile --ignore-scripts`, CLI help and a test run succeed, and document the local invocation.
+
+## 2. Deliver one end-to-end review slice
+
+- [x] 2.1 Discover one explicit local change through native CLI JSON and expose its manifest with visible identity and native status; verify `bun run test` covers missing CLI/change, unsupported JSON and nonstandard artifact names, with no copied schema/status parser.
+- [x] 2.2 Serve safe rendered/source views through a capability-protected loopback process with explicit stop; verify `bun run test` rejects escaping paths, foreign origins, forged hosts, missing capability and active Markdown content, and document the local boundary.
+- [x] 2.3 Save one exact plain-text selection with its original-byte hash, immutable snapshot and private atomic state; verify `bun run test` covers offsets, durable restart, failed persistence, corrupt state and conflicting writers without canonical source writes.
+- [x] 2.4 Submit an immutable batch and retrieve it through the CLI in Markdown/JSON; verify repeated retrieval is stable, unknown IDs fail and exports omit absolute paths; document the batch receipt and copy fallback.
+- [x] 2.5 Refresh after an external Markdown revision and retain stale/orphaned comments with explicit reattachment; verify changed, deleted and duplicate-text cases in `bun run test`.
+- [x] 2.6 Complete `bun run test:browser` for read → select → comment → submit → CLI retrieve → external revision → stale/orphan display → restart; verify canonical hashes change only during the explicit fixture revision and record the exact owned runtime and result before expanding features.
+
+## 3. Expand only within the accepted contracts
+
+- [x] 3.1 Extend rendered mapping with precision labels and source fallback; verify `bun run test` plus `bun run test:browser` cover Unicode, CRLF, escapes/entities, emphasis, task lists, tables and cross-block selection; document unsupported selection behavior.
+- [x] 3.2 Exercise custom schemas, declared/explicit stores, global-default refusal and separate worktrees sharing a change slug; verify native discovery fixtures and identity isolation through `bun run test`, and document only exercised compatibility.
+- [x] 3.3 Add the optional on-demand workflow instruction, macOS opener and no-open/manual URL path; verify opener success once locally and forced failure/clipboard denial through `bun run test:browser`, and document that instruction-based opening is not a guaranteed OpenSpec event hook.
+- [x] 3.4 Build and inspect a local package, install into a temporary prefix and exercise installed help/review/retrieval through `bun run test:package`; run `bun run smoke -- --fixture local-review --no-open`, strict OpenSpec validation and `git diff --check`; record readiness, completed browser checks and human visual review separately. Registry publication and releases require separate authority.
+
+## 4. Complete the operator review loop
+
+- [x] 4.1 Fix actual pointer selection and add the local favicon; verify real drag/double-click composition and favicon loading in Chrome browser tests.
+- [x] 4.2 Add bounded feedback waiting with durable batch sequence cursors; verify queued-before-wait delivery, live submission, timeouts and repeatable retrieval without a second agent.
+- [x] 4.3 Reuse an active exact-change review and refresh it through private local IPC; verify no second writer, browser update, draft preservation and stale/orphan reconciliation.
+- [x] 4.4 Ship a small first-party skill stub which reads current CLI guidance without installing global hooks or changing agent ownership; validate the stub and exercise its documented commands.
+- [x] 4.5 Reconcile design/spec/tasks as the planning authority, keep docs/workflow.md as usage only, and run the integrated contract/browser/package/smoke/native gates before local commit and Chrome preview handoff.
+
+## 5. Close the developer feedback loop
+
+- [x] 5.1 Watch only the selected change using bounded native filesystem events, coalesce writes and automatically refresh validated native discovery; test direct edits, atomic replacement, new/removed artifacts, unchanged events and preserved drafts/source bounds.
+- [x] 5.2 Persist observed received/working/replied activity separately from immutable batches; test queued submission, no-listener messaging, repeated retrieval, explicit agent status/replies and restart persistence.
+- [x] 5.3 Expose the complete loop in the browser and current CLI/skill guidance without hooks, model interruption, silent session control or false addressed/approval claims; test the installed package and headless Chrome round trip.
+- [x] 5.4 Run the integrated acceptance gates, retain existing preview data, then stay in this conversation's bounded feedback loop for the operator's final review.
+
+## 6. Refine review navigation and selection
+
+- [x] 6.1 Use the encoded change name in the review route while preserving canonical state identity, active-process reuse and capability checks; verify CLI/package and HTTP contracts.
+- [x] 6.2 Open the composer for rendered selections across formatting and paragraphs using explicit enclosing-source precision; verify real pointer and element-boundary selections, transformed text, unmapped fallback and saved source offsets in headless Chrome.
+- [x] 6.3 Run integrated checks, retain saved preview feedback and provide the updated review link for operator testing.
+
+## 7. Make queued feedback correctable
+
+- [x] 7.1 Serialize durable delivery claims with cancellation and paused queue editing; retain immutable history and restart-safe replacement links, skip withdrawn batches in cursor delivery, and reject cancellation after handoff.
+- [x] 7.2 Submit only new or changed open comments, block parallel resubmission of comments already queued, and update a paused batch from its current saved comments without resending unrelated old feedback.
+- [x] 7.3 Add edit/cancel/update queue controls, truthful delivered/cancelled/replaced states and collapsed copy/download actions; keep after-delivery correction explicit and preserve drafts.
+- [x] 7.4 Verify delivery/cancellation races, retries, restart persistence, offline/archive retrieval, browser flow and installed CLI; run the integrated gates and retain preview feedback for operator review.
+
+## 8. Complete the review lifecycle and source comparison
+
+- [x] 8.1 Add durable End review and explicit Resume review/--reopen, preserve history and drafts, reject queued-work abandonment and post-end mutations, and return ended to waiting agents without model control.
+- [x] 8.2 Retain current/previous source manifests across restart and show added/removed/changed files with bounded, on-demand native Git diffs; keep metadata-only actions from advancing the comparison baseline.
+- [x] 8.3 Verify browser lifecycle/diff flows, CLI wait/end/reopen, persistence, source bounds, escaping diff text and missing/native-diff failure behavior.
+
+## 9. Audit and automate maintainable local delivery
+
+- [x] 9.1 Audit all tracked code and documentation for dead paths, stale instructions and unnecessary complexity; make focused simplifications with regression checks and retain canonical OpenSpec ownership.
+- [x] 9.2 Review filesystem, browser, IPC, subprocess, persistence and automation security; repair findings and record scope/evidence without claiming an independent review.
+- [x] 9.3 Provide one repeatable local check entrypoint and least-privilege, pinned, fork-safe CI using repository runner variables; validate locally without changing remote settings, triggering runners or publishing.
+- [x] 9.4 Run the final integrated gates, inspect desktop/mobile states, retain operator preview feedback, commit locally and report release prerequisites and remaining unsupported behavior.
