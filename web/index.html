@@ -1,12 +1,64 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SpecTater review</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>SpecTater review</title>
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
 <body>
-  <header><a class="wordmark" href="#">SpecTater</a><span>Local OpenSpec review</span><button id="refresh" type="button">Refresh source</button></header>
-  <p id="message" role="status" aria-live="polite">Loading review…</p>
+  <header>
+    <a class="wordmark" href="#">SpecTater</a>
+    <div class="header-actions">
+      <label class="sr-only" for="theme">Theme</label>
+      <select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+      <button id="refresh" type="button">Refresh source</button>
+    </div>
+  </header>
+  <p id="message" role="status" aria-live="polite">Loading…</p>
   <div class="workspace">
-    <nav aria-label="Change artifacts"><h2 id="change">Artifacts</h2><p id="identity"></p><div id="artifacts"></div><details><summary>Planning location</summary><p id="location"></p></details><p class="note">Planning status and comments do not grant implementation approval.</p></nav>
-    <main id="main"><div class="document-toolbar"><h1 id="document-name">Choose an artifact</h1><div role="group" aria-label="Document view"><button id="rendered-mode" aria-pressed="true">Rendered</button><button id="source-mode" aria-pressed="false">Source</button></div></div><p id="revision" class="note"></p><article id="rendered" class="prose"></article><div id="source-view" hidden><pre id="source-lines" aria-hidden="true"></pre><pre id="source" hidden tabindex="0" aria-label="Markdown source"></pre></div><p id="selection-help" class="note">Select text in the document to attach feedback. Use Source for exact selections across blocks.</p></main>
-    <aside aria-label="Review feedback"><h2>Feedback</h2><form id="comment-form"><label for="comment">Comment on selected text</label><p id="selection" class="selection">No text selected.</p><textarea id="comment" rows="4" maxlength="10000" required placeholder="What should change?"></textarea><button id="save" type="submit" disabled>Save comment</button></form><div id="comments"></div><div class="submission"><h2>Submit feedback</h2><p class="note">Creates a saved batch for your existing conversation. You decide when the agent reads it.</p><button id="submit" type="button">Submit batch</button><div id="receipts"></div><label for="export">Batch export</label><textarea id="export" rows="5" readonly placeholder="Submit or open a batch to view its export."></textarea><button id="copy" type="button">Copy export</button><button id="download" type="button">Download export</button></div></aside>
+    <nav aria-label="Change artifacts">
+      <h2 id="change">Artifacts</h2>
+      <div id="artifacts"></div>
+      <details class="review-details">
+        <summary>Details</summary>
+        <p id="identity"></p><p id="location"></p><p id="revision"></p>
+        <div id="artifact-statuses"></div>
+        <p>Review feedback does not grant approval.</p>
+      </details>
+    </nav>
+    <main id="main">
+      <div class="document-toolbar">
+        <h1 id="document-name">Choose an artifact</h1>
+        <div role="group" aria-label="Document view"><button id="rendered-mode" aria-pressed="true">Rendered</button><button id="source-mode" aria-pressed="false">Source</button></div>
+      </div>
+      <article id="rendered" class="prose"></article>
+      <div id="source-view" hidden><pre id="source-lines" aria-hidden="true"></pre><pre id="source" hidden tabindex="0" aria-label="Markdown source"></pre></div>
+    </main>
+    <aside aria-label="Review feedback">
+      <h2>Comments</h2>
+      <form id="comment-form">
+        <label class="sr-only" for="comment">Comment on selected text</label>
+        <p id="selection" class="selection">Select text to comment.</p>
+        <textarea id="comment" rows="3" maxlength="10000" required placeholder="Add a comment…"></textarea>
+        <button id="save" type="submit" disabled>Save comment</button>
+      </form>
+      <div id="comments"></div>
+      <div class="submission">
+        <button id="submit" type="button" hidden>Submit batch</button>
+        <div id="receipts"></div>
+        <details id="export-details" hidden>
+          <summary>Export</summary>
+          <code id="retrieval-command"></code>
+          <label class="sr-only" for="export">Batch export</label>
+          <textarea id="export" rows="5" readonly></textarea>
+          <div class="export-actions"><button id="copy" type="button">Copy export</button><button id="download" type="button">Download export</button></div>
+        </details>
+      </div>
+    </aside>
   </div>
-</body></html>
+</body>
+</html>

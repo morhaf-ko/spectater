@@ -5,7 +5,7 @@ if (token) sessionStorage.setItem(route, token);
 history.replaceState(null, '', route);
 let state, selectedId, selection, mode = 'rendered', busy = false;
 
-function announce(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); }
+function announce(text, error = false) { $('message').textContent = text; $('message').classList.toggle('error', error); $('message').classList.toggle('quiet', text === 'Ready.'); }
 async function api(suffix, input) {
   const response = await fetch(`${route}/${suffix}`, { method: input ? 'POST' : 'GET',
     headers: { Authorization: `Bearer ${token}`, ...(input ? { 'Content-Type': 'application/json' } : {}) },
@@ -21,7 +21,7 @@ function element(tag, text, className) {
 }
 function button(text, handler) { const el = element('button', text); el.type = 'button'; el.addEventListener('click', handler); return el; }
 function documentNow() { return state?.documents.find(d => d.id === selectedId); }
-function resetSelection() { selection = null; $('selection').textContent = $('comment').value ? 'No text selected. Your written draft is preserved.' : 'No text selected.'; $('save').disabled = true; }
+function resetSelection() { selection = null; $('selection').textContent = $('comment').value ? 'Draft kept. Select text again.' : 'Select text to comment.'; $('save').disabled = true; }
 function displayDocument() {
   const d = documentNow();
   resetSelection();
@@ -40,21 +40,22 @@ function display() {
   $('identity').textContent = `${state.schemaName} · ${state.source}`;
   $('location').textContent = state.changeRoot;
   $('artifacts').replaceChildren();
+  $('artifact-statuses').replaceChildren();
+  if (!documentNow()) selectedId = state.documents.find(d => d.supported)?.id;
   for (const artifact of state.artifacts) {
     const group = element('div', '', 'artifact-group');
-    group.append(element('p', `${artifact.id} · ${artifact.status}`, 'artifact-status'));
+    $('artifact-statuses').append(element('p', `${artifact.id} · ${artifact.status}`));
     const docs = state.documents.filter(d => d.artifact === artifact.id);
-    if (!docs.length) group.append(element('p', 'No existing output', 'note'));
+    if (docs.length > 1) group.append(element('p', artifact.id, 'artifact-status'));
     for (const d of docs) {
       const el = button(`${d.path}${d.supported ? '' : ' (unsupported)'}`, () => { selectedId = d.id; display(); });
       el.className = 'artifact'; if (d.id === selectedId) el.setAttribute('aria-current', 'page'); group.append(el);
     }
     $('artifacts').append(group);
   }
-  if (!documentNow()) selectedId = state.documents.find(d => d.supported)?.id;
+  if (!state.documents.length) $('artifacts').append(element('p', 'No existing artifacts.', 'note'));
   displayDocument();
   $('comments').replaceChildren();
-  if (!state.comments.length) $('comments').append(element('p', 'No comments yet. Select text to begin.', 'note'));
   for (const c of state.comments) {
     const section = element('section', '', 'comment');
     section.append(element('h3', `${c.status} · ${c.state}`), element('p', c.path, 'note'), element('blockquote', c.quote), element('p', c.body));
@@ -67,10 +68,11 @@ function display() {
     $('comments').append(section);
   }
   $('submit').disabled = !state.comments.some(c => c.state === 'open');
+  $('submit').hidden = $('submit').disabled;
   $('receipts').replaceChildren();
   for (const batch of [...state.batches].reverse()) {
     const receipt = element('div', '', 'receipt');
-    receipt.append(button(`Batch ${batch.sequence} · ${batch.count} comments`, () => showBatch(batch.id)), element('code', `spectater feedback --review ${state.reviewId} --batch ${batch.id} --format markdown`));
+    receipt.append(button(`Batch ${batch.sequence} · ${batch.count} comments`, () => showBatch(batch.id)));
     $('receipts').append(receipt);
   }
 }
@@ -85,12 +87,16 @@ async function action(input) {
   await operation(async () => {
     state = await api('action', { ...input, revision: state.revision });
     if (input.action === 'comment') $('comment').value = '';
-    display(); announce(input.action === 'submit' ? 'Batch saved. Use its retrieval command in your existing conversation.' : 'Feedback saved.');
+    display(); announce(input.action === 'submit' ? 'Batch saved.' : 'Saved.');
     if (input.action === 'submit') await showBatch(state.batches.at(-1).id);
   });
 }
 async function showBatch(id) {
-  try { $('export').value = (await api(`batch/${id}`)).markdown; }
+  try {
+    $('export').value = (await api(`batch/${id}`)).markdown;
+    $('retrieval-command').textContent = `spectater feedback --review ${state.reviewId} --batch ${id} --format markdown`;
+    $('export-details').hidden = false; $('export-details').open = true;
+  }
   catch (error) { announce(error.message, true); }
 }
 function offset(container, node, offset) {
@@ -109,7 +115,7 @@ function captureSelection() {
   } else {
     const mapped = node => (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement)?.closest('[data-start]');
     const first = mapped(range.startContainer), last = mapped(range.endContainer);
-    if (!first || first !== last) { resetSelection(); $('selection').textContent = 'This selection crosses rendered spans. Switch to Source and select exact text.'; return; }
+    if (!first || first !== last) { resetSelection(); $('selection').textContent = 'Selection crosses rendered spans. Use Source.'; return; }
     precision = first.dataset.precision;
     start = Number(first.dataset.start); end = Number(first.dataset.end);
     if (precision === 'exact') { end = start + offset(first, range.endContainer, range.endOffset); start += offset(first, range.startContainer, range.startOffset); }
@@ -122,7 +128,7 @@ document.addEventListener('mouseup', captureSelection);
 document.addEventListener('keyup', captureSelection);
 $('comment-form').addEventListener('submit', event => { event.preventDefault(); if (selection) action({ action: 'comment', ...selection, body: $('comment').value }); });
 $('submit').addEventListener('click', () => action({ action: 'submit' }));
-$('refresh').addEventListener('click', () => operation(async () => { state = await api('refresh', {}); display(); announce('Source refreshed. Written drafts are preserved; select text again to save.'); }));
+$('refresh').addEventListener('click', () => operation(async () => { state = await api('refresh', {}); display(); announce('Refreshed. Select text again.'); }));
 for (const name of ['rendered', 'source']) $(`${name}-mode`).addEventListener('click', () => { mode = name; displayDocument(); });
 $('copy').addEventListener('click', async () => {
   try { if (!$('export').value) throw new Error('Submit or open a batch first.'); await navigator.clipboard.writeText($('export').value); announce('Export copied.'); }
@@ -133,4 +139,4 @@ $('download').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([$ ('export').value], { type: 'text/markdown' }));
   const link = document.createElement('a'); link.href = url; link.download = 'spectater-feedback.md'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-operation(async () => { state = await api('state'); mode = state.defaultView; display(); announce('Ready. Select document text to leave feedback.'); });
+operation(async () => { state = await api('state'); mode = state.defaultView; display(); announce('Ready.'); });

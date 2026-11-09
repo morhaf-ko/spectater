@@ -8,6 +8,7 @@ import { feedback, feedbackMarkdown } from './storage.js';
 
 const assets = new Map([
   ['/app.js', ['../web/app.js', 'text/javascript']],
+  ['/theme.js', ['../web/theme.js', 'text/javascript']],
   ['/style.css', ['../web/style.css', 'text/css']],
 ]);
 const shell = await readFile(new URL('../web/index.html', import.meta.url), 'utf8');

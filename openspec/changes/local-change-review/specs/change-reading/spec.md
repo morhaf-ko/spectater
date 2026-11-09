@@ -6,6 +6,21 @@ Let an operator read one explicitly selected OpenSpec change while preserving na
 
 ## ADDED Requirements
 
+### Requirement: Minimal system-aware appearance
+The system SHALL default to the operating system color scheme and allow explicit light or dark appearance. It MUST preserve the current document, selection and draft when appearance changes. Secondary metadata and export controls SHALL use progressive disclosure while remaining accessible.
+
+#### Scenario: System appearance changes
+- **WHEN** the operator uses System appearance and the operating system changes color scheme
+- **THEN** the reader follows that scheme without refreshing source or replacing the document
+
+#### Scenario: Manual appearance
+- **WHEN** the operator selects Light or Dark
+- **THEN** that choice overrides the operating system until System is selected again and a draft remains intact
+
+#### Scenario: Preference storage unavailable
+- **WHEN** the browser refuses preference storage
+- **THEN** System remains the default and manual appearance controls still work for the current page
+
 ### Requirement: Optional reader preferences
 The system SHALL provide built-in defaults without requiring a configuration file. It SHALL allow an optional user-selected configuration to choose the initial document view, browser-opening preference and private state location. It MUST reject invalid settings visibly and MUST NOT expose settings that disable filesystem, browser or revision protections.
 

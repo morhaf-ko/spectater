@@ -114,22 +114,76 @@ test('document reader desktop/mobile states and configured source default', asyn
   try {
     const review = await openReview({ ...f.options, defaultView: 'source' }, { directory: f.stateDir }); server = await startServer(review);
     await page.goto(server.url); await expect(page.locator('#source')).toBeVisible();
+    await page.getByLabel('Theme', { exact: true }).selectOption('light');
     const dir = '.tmp/explore-spectater/screenshots'; await mkdir(dir, { recursive: true });
     await expect(page.locator('#source-lines')).toContainText('1\n2\n3');
     await page.screenshot({ path: `${dir}/desktop-source.png` });
     await page.getByRole('button', { name: 'Rendered', exact: true }).click();
     await expect(page.locator('#rendered h1')).toHaveText('Proposal');
-    await page.screenshot({ path: `${dir}/desktop.png`, fullPage: true });
+    for (const theme of ['light', 'dark']) {
+      await page.getByLabel('Theme', { exact: true }).selectOption(theme);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      await page.screenshot({ path: `${dir}/desktop-${theme}.png`, fullPage: true });
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     expect(await page.locator('header').count()).toBe(1);
-    await page.screenshot({ path: `${dir}/mobile.png` });
+    for (const theme of ['light', 'dark']) {
+      await page.getByLabel('Theme', { exact: true }).selectOption(theme);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      await page.screenshot({ path: `${dir}/mobile-${theme}.png` });
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.locator('aside').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${dir}/mobile-feedback.png` });
     await page.keyboard.press('Tab');
     expect(await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle)).not.toBe('none');
+  } finally { await server?.close(); await f.cleanup(); }
+});
+
+test('system theme follows OS changes; manual choices persist without losing a draft', async ({ page }) => {
+  const f = await fixture();
+  let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(server.url);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('system');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await selectSource(page, 'exact sentence');
+    await page.locator('#comment').fill('Draft survives theme changes.');
+    await page.getByLabel('Theme', { exact: true }).selectOption('dark');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.locator('#comment')).toHaveValue('Draft survives theme changes.');
+    await expect(page.locator('#save')).toBeEnabled();
+    await page.locator('#save').click(); await expect(page.locator('#comments')).toContainText('Draft survives theme changes.');
+    await page.reload();
+    await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('dark');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.getByLabel('Theme', { exact: true }).selectOption('light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.getByLabel('Theme', { exact: true }).selectOption('system');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  } finally { await server?.close(); await f.cleanup(); }
+});
+
+test('theme still works when browser preference storage is unavailable', async ({ page }) => {
+  const f = await fixture(); let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+    await page.addInitScript(() => Object.defineProperty(window, 'localStorage', { get() { throw new Error('storage denied'); } }));
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(server.url);
+    await expect(page.locator('#message')).toContainText('Ready.');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.getByLabel('Theme', { exact: true }).selectOption('light');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   } finally { await server?.close(); await f.cleanup(); }
 });
 

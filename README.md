@@ -33,6 +33,12 @@ bun bin/spectater.js feedback --review REVIEW_ID --batch BATCH_ID --format markd
 
 Submission does not send feedback to an agent, resolve comments or approve implementation, merge or deployment. See [workflow integration](docs/workflow.md).
 
+## Appearance
+
+The reader follows the Clean design system. Theme starts at **System** and follows your OS preference; choose **Light** or **Dark** in the header to override it. The choice survives reloads for that local origin. A new server port starts with System. No theme setup or dependencies are needed.
+
+Artifact metadata is under **Details**. Batch export appears after submission or opening a saved batch. Select document text, save a comment, then submit the batch to test the complete loop.
+
 ## Configuration
 
 No configuration file is required. Defaults are rendered view, automatic browser-opening attempt and private platform review storage. An optional JSON file at `$XDG_CONFIG_HOME/spectater/config.json` (otherwise `~/.config/spectater/config.json`) can override preferences:
@@ -66,6 +72,7 @@ bun run test:browser
 bun run test:package
 bun run smoke -- --fixture local-review --no-open
 bun run benchmark
+bun run benchmark -- --project . --change local-change-review
 ```
 
 Browser checks use a dedicated headless installed Chrome channel. Package checks create a local tarball and temporary offline install; fill Bun's package cache through the normal install first. No global install or publication occurs.

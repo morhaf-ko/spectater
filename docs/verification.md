@@ -6,7 +6,7 @@ Local macOS, Bun 1.4.4, Node 24.22.2 for the external OpenSpec CLI, OpenSpec 1.1
 
 ## Acceptance interfaces
 
-Local acceptance passed: 13 contract tests, four browser tests, a 16-file package allowlist with temporary offline install, CLI smoke, frozen install, dependency audit, Renovate validation and strict OpenSpec validation. No checks were waived.
+Local acceptance passed: 13 contract tests, six browser tests, a 16-file package allowlist with temporary offline install, CLI smoke, frozen install, dependency audit, Renovate validation and strict OpenSpec validation. No checks were waived.
 
 | Command | Evidence |
 | --- | --- |
@@ -46,3 +46,19 @@ The runtime switch alone did not improve this fixture. Startup now performs one 
 ## Remaining limits
 
 macOS is exercised. Linux permissions/manual opening remain unverified on Linux; Windows storage and automatic opening are unsupported. Cross-leaf rendered selection falls back to Source. Registry publication, hosted CI, Renovate activation/preset access, independent security review and operator aesthetic acceptance are outside this local evidence. Renovate automatic merges stay disabled until remote validation is reporting and required. No release or production readiness is claimed.
+
+## Clean and theme refinement
+
+The operator requested the OpenDesign Clean system, system-mode default, manual light/dark overrides and fewer visible instructions. The implementation keeps artifact metadata behind Details and export controls behind Export. Six browser tests pass, including OS color-scheme changes, persistent overrides, selection/draft preservation and storage-denial fallback. Light/dark screenshots at 1440×900 and 390×844 were inspected; the scoped detector returned no findings. The source reference and license are recorded in DESIGN.md. No runtime or theme dependency was added.
+
+The complete active change was measured with `bun run benchmark -- --project . --change local-change-review`: six documents, 36,177 source bytes and a 114,856-byte initial JSON state response at measurement time. Three sequential warm-cache runs gave median initialization 629.93 ms, view 0.06 ms, durable save 10.52 ms and refresh 621.38 ms. Separate native subprocess samples measured version 59.90 ms, context 226.91 ms, list 242.95 ms and status 231.85 ms. These are local samples, not cross-machine guarantees or controlled comparisons between CLI commands.
+
+Served assets at that point: HTML 2,847 bytes, CSS 8,856 bytes, app JavaScript 9,097 bytes and theme JavaScript 979 bytes (21,779 bytes total, uncompressed). Theme changes update root attributes/CSS variables without network requests or document rendering. No theme paint-time benchmark is claimed.
+
+Prioritized future performance experiments:
+
+1. Verify whether one native status response provides every needed root, schema, artifact and diagnostic field for the supported versions/stores. If it does, replace redundant context/list calls while retaining native discovery and global-default refusal. Current measurements identify subprocess startup as the dominant cost; no parser replacement is proposed.
+2. Return smaller mutation responses and load only the selected document, with explicit invalidation. The current response contains every document's source/rendered HTML and repeated comment snapshots. Measure larger changes before adding transport/cache complexity.
+3. Evaluate lazy artifact parsing or one local parser bundle if larger-change profiling shows import/parsing cost. Current state views are already below one millisecond in this sample.
+
+Revision hashes, filesystem boundaries, one-writer checks, fsync and atomic state persistence remain required. Compression, native binaries, background daemons and extra caches are not justified by the current local measurements.
