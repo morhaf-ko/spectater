@@ -43,7 +43,7 @@ The system SHALL allow one waiting listener per review. A second wait MUST fail 
 
 ### Requirement: Open review listing
 
-The system SHALL list open reviews with their change, project, URL, listener presence and next command when run with no arguments.
+The system SHALL list open reviews with their change, project root and next command when run with no arguments. The listing MUST NOT print review URLs, because they carry the capability and hook output enters agent context.
 
 #### Scenario: No arguments
 

@@ -454,24 +454,26 @@ async function loadComparison(id) {
   }
 }
 async function operation(fn) {
-  if (busy) return;
+  if (busy) return false;
   busy = true;
   document.body.setAttribute('aria-busy', 'true');
   try {
     await fn();
+    return true;
   } catch (error) {
     announce(error.message, true);
     if ($('comment-popover').matches(':popover-open')) {
       $('composer-error').textContent = error.message;
       $('composer-error').hidden = false;
     }
+    return false;
   } finally {
     busy = false;
     document.body.setAttribute('aria-busy', 'false');
   }
 }
 async function action(input) {
-  await operation(async () => {
+  return operation(async () => {
     acceptState(await api('action', { ...input, revision: state.revision }));
     if (input.action === 'comment' || input.action === 'edit') {
       $('comment').value = '';
@@ -608,11 +610,14 @@ document.addEventListener('keyup', (event) => {
   )
     captureSelection();
 });
-$('comment-form').addEventListener('submit', async (event) => {
+function saveComment() {
+  if (editingId) return action({ action: 'edit', id: editingId, body: $('comment').value });
+  if (selection) return action({ action: 'comment', ...selection, body: $('comment').value });
+  return false;
+}
+$('comment-form').addEventListener('submit', (event) => {
   event.preventDefault();
-  if (editingId) await action({ action: 'edit', id: editingId, body: $('comment').value });
-  else if (selection) await action({ action: 'comment', ...selection, body: $('comment').value });
-  $('comment-form').dispatchEvent(new Event('saved'));
+  void saveComment();
 });
 $('comment').addEventListener('input', persistDraft);
 $('comment-popover').addEventListener('toggle', updateDraftButton);
@@ -648,13 +653,8 @@ $('agent-message').addEventListener('keydown', (event) => {
 $('comment').addEventListener('keydown', async (event) => {
   if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
   event.preventDefault();
-  if ($('save').disabled) return;
-  const sendAll = event.metaKey || event.ctrlKey;
-  await new Promise((resolve) => {
-    $('comment-form').addEventListener('saved', resolve, { once: true });
-    $('comment-form').requestSubmit();
-  });
-  if (sendAll && !$('submit').disabled) await submit();
+  if ($('save').disabled || !(await saveComment())) return;
+  if ((event.metaKey || event.ctrlKey) && !$('submit').disabled) await submit();
 });
 $('refresh').addEventListener('click', () =>
   operation(async () => {

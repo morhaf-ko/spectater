@@ -70,7 +70,6 @@ const nextSteps = {
   timeout: 'No feedback yet. Run wait again.',
   ended: 'The reviewer ended the review. Stop waiting and do not reopen unless asked.',
   stopped: 'The review server is not running. Ask the reviewer before running open again.',
-  disconnected: 'The connection dropped. Run wait again.',
   listener_active: 'Another wait is running. Use --takeover only if that listener is gone.',
   listener_replaced: 'Another wait took over this review. Stop waiting.',
 };

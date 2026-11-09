@@ -212,7 +212,11 @@ export async function openReview(options, dependencies = {}) {
       }));
       const editing = state.batches.find((batch) => batchStatus(state, batch.id) === 'editing');
       if (!entries.length && !message) {
-        if (input.end && !editing) return actions.end(state);
+        if (input.end && !editing) {
+          if (outstanding(state)) state.endRequestedAt = now();
+          else actions.end(state);
+          return;
+        }
         throw new Error(
           editing
             ? 'Keep an open comment or cancel the queued batch.'
@@ -297,11 +301,11 @@ export async function openReview(options, dependencies = {}) {
     deliver: () =>
       serial(async () => {
         const state = store.state;
-        if (state.endedAt) return null;
         const batch = state.batches.find(
           (item) => deliverable(state, item) && state.activity?.[item.id]?.status !== 'replied',
         );
-        if (!batch) return null;
+        // An ended review still redelivers a claimed batch until the agent replies to it.
+        if (!batch || (state.endedAt && batchStatus(state, batch.id) !== 'claimed')) return null;
         if (batchStatus(state, batch.id) === 'queued') {
           const at = new Date().toISOString();
           state.queue ||= {};

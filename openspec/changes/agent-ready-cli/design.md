@@ -27,9 +27,7 @@ spectater wait add-dark-mode          # repeat until status is "ended"
 
 ## Server-tracked delivery
 
-`wait` delivers the oldest deliverable batch the agent has not replied to. Delivery claims the batch and records receipt in one durable write, so a repeated `wait` after a crash returns the same batch until the agent replies. `reply` without `--batch` targets that batch. The `--after` cursor, per-batch live claims and the offline state-file fallbacks are removed. `feedback <change> --batch <n>` reads any batch from saved state without recording delivery.
-
-A wait response sends its headers immediately and a space every 15 seconds until the JSON result, so idle-connection timeouts in either runtime never cut a long wait. JSON parsers ignore the leading whitespace.
+`wait` delivers the oldest deliverable batch the agent has not replied to. Delivery claims the batch and records receipt in one durable write, so a repeated `wait` after a crash returns the same batch until the agent replies. `reply` without `--batch` targets that batch. An ended review still redelivers a claimed, unreplied batch, so the final Send & End batch survives a lost response; Send & End with nothing new while a batch is queued ends the review once that batch is delivered. The `--after` cursor, per-batch live claims and the offline state-file fallbacks are removed. `feedback <change> --batch <n>` reads any batch from saved state without recording delivery.
 
 ## Detached server
 
@@ -45,7 +43,7 @@ Shebang `#!/usr/bin/env node`, `engines.node >=22.12` (OpenSpec's own floor). Th
 
 ## Distribution and hooks
 
-`skills/spectater/SKILL.md` is a short stub that tells the agent to run `npx -y spectater workflow`. `spectater setup hooks` writes a SessionStart hook for Claude Code (`~/.claude/settings.json`) and Codex (`~/.codex/hooks.json`, plus `features.hooks = true` in `config.toml`), an OpenCode plugin (`~/.config/opencode/plugins/spectater.js`) and a Copilot CLI hook (`~/.copilot/hooks/spectater.json`, whose command prints `additionalContext` JSON). Each runs `spectater status --hook`, which prints open reviews for the current project and nothing otherwise. Setup is idempotent, keeps unrelated hooks, refuses to replace an unmanaged OpenCode plugin, reports each agent separately, and `--remove` undoes it. No hook blocks, wakes or drives the agent.
+`skills/spectater/SKILL.md` is a short stub that tells the agent to run `npx -y spectater workflow`. `spectater setup hooks` writes a SessionStart hook for Claude Code (`~/.claude/settings.json`) and Codex (`~/.codex/hooks.json`; Codex enables hooks by default and asks the user to trust new ones through `/hooks`), an OpenCode plugin (`~/.config/opencode/plugins/spectater.js`) and a Copilot CLI hook (`~/.copilot/hooks/spectater.json`, whose command prints `additionalContext` JSON). Each runs `spectater status --hook`, which prints open reviews for the current project and nothing otherwise. Agents whose configuration directory does not exist are skipped. Setup is idempotent, keeps unrelated hooks, refuses to replace an unmanaged OpenCode plugin, reports each agent separately, and `--remove` undoes it. No hook blocks, wakes or drives the agent.
 
 ## Code structure
 

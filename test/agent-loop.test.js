@@ -114,8 +114,16 @@ test('Send & End ends the review only after the final batch is delivered', async
   assert.equal(final.batch.message, 'Overall: tighten the scope.');
   assert.deepEqual(final.batch.entries, []);
   assert.ok(review.state.endedAt);
-  assert.equal((await agent('wait', { timeout: 0 })).status, 'ended');
+  assert.equal((await agent('wait', { timeout: 0 })).batch.id, final.batch.id);
   await agent('reply', { status: 'done', body: 'Scope tightened.' });
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'ended');
+  await agent('resume');
+  await submit(review, 'Queued before Send & End.');
+  await review.mutate({ action: 'submit', revision: review.state.revision, end: true });
+  assert.equal(review.state.endedAt, undefined, 'a queued batch defers the end');
+  assert.equal((await agent('wait', { timeout: 0 })).batch.sequence, 2);
+  assert.ok(review.state.endedAt);
+  await agent('reply', { status: 'done', body: 'Handled.' });
   await agent('resume');
   await review.mutate({ action: 'submit', revision: review.state.revision, end: true });
   assert.ok(review.state.endedAt, 'Send & End with nothing pending ends immediately');
@@ -252,24 +260,21 @@ test('setup hooks is idempotent, keeps unrelated hooks and removes only its own 
     JSON.stringify({ model: 'x', hooks: { SessionStart: [other] } }),
   );
   await mkdir(path.join(home, '.codex'), { recursive: true });
-  await writeFile(
-    path.join(home, '.codex', 'config.toml'),
-    'model = "y"\n\n[features]\nweb = true\n',
-  );
+  await mkdir(path.join(home, '.copilot'), { recursive: true });
   const env = {};
   const first = await setupHooks({ home, env });
   assert.deepEqual(
     first.map((r) => r.result),
-    ['updated', 'created', 'created', 'created'],
+    ['updated', 'created', 'skipped (not installed)', 'created'],
   );
-  assert.ok((await setupHooks({ home, env })).every((r) => r.result === 'unchanged'));
+  assert.deepEqual(
+    (await setupHooks({ home, env })).map((r) => r.result),
+    ['unchanged', 'unchanged', 'skipped (not installed)', 'unchanged'],
+  );
   const claude = JSON.parse(await readFile(path.join(home, '.claude', 'settings.json'), 'utf8'));
   assert.equal(claude.model, 'x');
   assert.equal(claude.hooks.SessionStart.length, 2);
-  assert.equal(
-    await readFile(path.join(home, '.codex', 'config.toml'), 'utf8'),
-    'model = "y"\n\n[features]\nhooks = true\nweb = true\n',
-  );
+  await assert.rejects(stat(path.join(home, '.codex', 'config.toml')));
   const copilot = JSON.parse(
     await readFile(path.join(home, '.copilot', 'hooks', 'spectater.json'), 'utf8'),
   );

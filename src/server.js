@@ -23,8 +23,6 @@ const headers = {
   'Cache-Control': 'no-store',
 };
 export const MAX_WAIT_MS = 3_600_000;
-// Agent waits write a space at this interval so idle-connection timeouts never fire mid-wait.
-const HEARTBEAT_MS = 15_000;
 
 async function readJson(request) {
   let bytes = 0;
@@ -82,7 +80,6 @@ export async function startServer(review, options = {}) {
     if (!target || waiter !== target) return;
     waiter = null;
     clearTimeout(target.timer);
-    clearInterval(target.heartbeat);
     if (!target.response.destroyed) target.response.end(JSON.stringify(result));
     presence();
   };
@@ -157,7 +154,6 @@ export async function startServer(review, options = {}) {
     finishWait(waiter, { status: 'listener_replaced' });
     response.writeHead(200, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
     const target = { response };
-    target.heartbeat = setInterval(() => response.write(' '), HEARTBEAT_MS);
     waiter = target;
     presence();
     response.once('close', () => finishWait(target, { status: 'disconnected' }));

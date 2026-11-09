@@ -479,6 +479,7 @@ test('message composer, keyboard shortcuts and Send & End reach a waiting agent'
     const final = JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout);
     expect(final.batch.message).toBe('Last note before ending.');
     await expect(page.locator('#listener-status')).toContainText('Review ended');
+    await run(['reply', 'example', '--message', 'Final changes made.']);
     expect(JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).status).toBe(
       'ended',
     );

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -40,42 +40,13 @@ function sessionStart(remove) {
   };
 }
 
-function copilot(remove) {
-  return (settings) => {
-    settings.version = 1;
-    settings.hooks ||= {};
-    const hooks = (settings.hooks.sessionStart || []).filter((h) => !managed(h.bash));
-    if (!remove) hooks.push({ type: 'command', bash: `${COMMAND} copilot`, timeoutSec: 10 });
-    settings.hooks.sessionStart = hooks;
-    return settings;
-  };
-}
-
-// Codex runs hooks only when `[features] hooks = true` is set in config.toml.
-async function enableCodexHooks(file) {
-  const text = (await readText(file)) ?? '';
-  const lines = text.split('\n');
-  let inFeatures = false,
-    insertAt = -1;
-  for (const [index, line] of lines.entries()) {
-    const header = line.match(/^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$/);
-    if (header) {
-      if (inFeatures) break;
-      inFeatures = header[1] === 'features';
-      if (inFeatures) insertAt = index + 1;
-    } else if (inFeatures && /^\s*hooks\s*=/.test(line)) {
-      if (/=\s*true\b/.test(line)) return;
-      lines[index] = 'hooks = true';
-      return writeFile(file, lines.join('\n'));
-    }
-  }
-  if (insertAt >= 0) lines.splice(insertAt, 0, 'hooks = true');
-  else lines.splice(text.endsWith('\n') ? -1 : lines.length, 0, '', '[features]', 'hooks = true');
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(
-    file,
-    `${lines.join('\n').replace(/^\n+/, '')}${text.endsWith('\n') ? '' : '\n'}`,
-  );
+function copilot(settings) {
+  settings.version = 1;
+  settings.hooks ||= {};
+  const hooks = (settings.hooks.sessionStart || []).filter((h) => !managed(h.bash));
+  hooks.push({ type: 'command', bash: `${COMMAND} copilot`, timeoutSec: 10 });
+  settings.hooks.sessionStart = hooks;
+  return settings;
 }
 
 const OPENCODE_MARKER = '// Managed by spectater setup hooks.';
@@ -115,46 +86,57 @@ async function openCode(file, remove) {
   return text === undefined ? 'created' : 'updated';
 }
 
-/** Installs or removes SessionStart hooks; returns one result per agent and never throws. */
+async function exists(directory) {
+  try {
+    return (await stat(directory)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function removeFile(file) {
+  if ((await readText(file)) === undefined) return 'unchanged';
+  await rm(file);
+  return 'removed';
+}
+
+/**
+ * Installs or removes SessionStart hooks for each agent whose configuration directory exists.
+ * Returns one result per agent and never throws.
+ */
 export async function setupHooks({ remove = false, home = os.homedir(), env = process.env } = {}) {
   const copilotHome = env.COPILOT_HOME || path.join(home, '.copilot');
   const targets = [
-    [
-      'Claude Code',
-      path.join(home, '.claude', 'settings.json'),
-      (f) => updateJson(f, sessionStart(remove)),
-    ],
-    [
-      'Codex',
-      path.join(home, '.codex', 'hooks.json'),
-      async (f) => {
-        const result = await updateJson(f, sessionStart(remove));
-        if (!remove) await enableCodexHooks(path.join(home, '.codex', 'config.toml'));
-        return result;
-      },
-    ],
-    [
-      'OpenCode',
-      path.join(home, '.config', 'opencode', 'plugins', 'spectater.js'),
-      (f) => openCode(f, remove),
-    ],
-    [
-      'GitHub Copilot CLI',
-      path.join(copilotHome, 'hooks', 'spectater.json'),
-      async (f) => {
-        if (remove) {
-          if ((await readText(f)) === undefined) return 'unchanged';
-          await rm(f);
-          return 'removed';
-        }
-        return updateJson(f, copilot(false));
-      },
-    ],
+    {
+      agent: 'Claude Code',
+      directory: path.join(home, '.claude'),
+      file: path.join(home, '.claude', 'settings.json'),
+      apply: (file) => updateJson(file, sessionStart(remove)),
+    },
+    {
+      agent: 'Codex',
+      directory: path.join(home, '.codex'),
+      file: path.join(home, '.codex', 'hooks.json'),
+      apply: (file) => updateJson(file, sessionStart(remove)),
+    },
+    {
+      agent: 'OpenCode',
+      directory: path.join(home, '.config', 'opencode'),
+      file: path.join(home, '.config', 'opencode', 'plugins', 'spectater.js'),
+      apply: (file) => openCode(file, remove),
+    },
+    {
+      agent: 'GitHub Copilot CLI',
+      directory: copilotHome,
+      file: path.join(copilotHome, 'hooks', 'spectater.json'),
+      apply: (file) => (remove ? removeFile(file) : updateJson(file, copilot)),
+    },
   ];
   const results = [];
-  for (const [agent, file, apply] of targets) {
+  for (const { agent, directory, file, apply } of targets) {
     try {
-      results.push({ agent, file, result: await apply(file) });
+      const result = (await exists(directory)) ? await apply(file) : 'skipped (not installed)';
+      results.push({ agent, file, result });
     } catch (error) {
       results.push({ agent, file, result: 'failed', error: error.message });
     }

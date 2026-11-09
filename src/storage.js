@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, lstat, mkdir, open, realpath, rename, unlink } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, open, realpath, rename, unlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { hash, within } from './discovery.js';
@@ -257,12 +257,28 @@ export async function openStore(review, directory = stateDirectory()) {
   try {
     lockHandle = await open(lock, 'wx', 0o600);
   } catch (error) {
-    if (error.code !== 'EEXIST' || !(await abandoned(lock)))
-      throw new Error(
-        `Review writer lock unavailable (${error.code}). Another SpecTater process owns this review.`,
-      );
-    await unlink(lock);
-    lockHandle = await open(lock, 'wx', 0o600);
+    const unavailable = new Error(
+      `Review writer lock unavailable (${error.code}). Another SpecTater process owns this review.`,
+    );
+    if (error.code !== 'EEXIST' || !(await abandoned(lock))) throw unavailable;
+    // Move the lock aside before judging it, so a concurrent reclaimer's fresh lock is restored.
+    const moved = `${lock}.${randomUUID()}.stale`;
+    try {
+      await rename(lock, moved);
+    } catch {
+      throw unavailable;
+    }
+    if (!(await abandoned(moved))) {
+      await link(moved, lock).catch(() => {});
+      await unlink(moved);
+      throw unavailable;
+    }
+    await unlink(moved);
+    try {
+      lockHandle = await open(lock, 'wx', 0o600);
+    } catch {
+      throw unavailable;
+    }
   }
   try {
     await lockHandle.writeFile(JSON.stringify({ pid: process.pid }));

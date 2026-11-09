@@ -46,6 +46,8 @@ Every agent command prints one JSON object with a `status` and a `next_step`, so
 
 Until the agent replies to a batch, `wait` returns that batch again, so feedback is never lost if the agent is interrupted.
 
+Other commands report `ready` or `reused` (`open`), `recorded` (`reply`), `refreshed` (`refresh`), `ended` (`end`), `stopping` or `not_running` (`stop`), and `stopped` (exit 3) when no server is running. Any command can return `error` (exit 1).
+
 ## In the browser
 
 - Select text in the rendered view or the Markdown source, then comment. Enter saves; Cmd/Ctrl+Enter saves and submits.
@@ -82,7 +84,7 @@ npm install -g spectater
 spectater setup hooks
 ```
 
-This adds a SessionStart hook for Claude Code (`~/.claude/settings.json`), Codex (`~/.codex/hooks.json`, enabling `features.hooks`), OpenCode (`~/.config/opencode/plugins/spectater.js`) and GitHub Copilot CLI (`~/.copilot/hooks/spectater.json`). The hook runs `spectater status --hook`, which prints open reviews for the current project and nothing otherwise. It never blocks or drives the agent. Restart your agent sessions afterwards.
+For each agent that is installed, this adds a SessionStart hook for Claude Code (`~/.claude/settings.json`), Codex (`~/.codex/hooks.json`; approve it once with `/hooks`), OpenCode (`~/.config/opencode/plugins/spectater.js`) and GitHub Copilot CLI (`~/.copilot/hooks/spectater.json`). The hook runs `spectater status --hook`, which prints open reviews for the current project and nothing otherwise. It never blocks or drives the agent. Restart your agent sessions afterwards.
 
 ## Configuration
 
