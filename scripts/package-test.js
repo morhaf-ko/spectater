@@ -26,7 +26,7 @@ try {
     path.join(install, 'package.json'),
     JSON.stringify({ private: true, dependencies: { spectater: tarball } }),
   );
-  await exec('bun', ['install', '--cwd', install, '--offline', '--ignore-scripts'], {
+  await exec('bun', ['install', '--cwd', install, '--ignore-scripts'], {
     timeout: 60000,
   });
   const bin = path.join(temp, 'install', 'node_modules', 'spectater', 'bin', 'spectater.js');
@@ -154,7 +154,7 @@ try {
   assert.equal((await cli.request('state')).endedAt, undefined);
   assert.equal((await cli.request('state')).batches.length, 2);
   console.log(
-    `Package passed: ${listing.length} allowlisted files, temporary offline Bun install, installed skill/workflow/open/wait/retrieval/queue replacement/reply/reuse/refresh/end/reopen; source changes limited to the explicit fixture revision.`,
+    `Package passed: ${listing.length} allowlisted files, temporary Bun install, installed skill/workflow/open/wait/retrieval/queue replacement/reply/reuse/refresh/end/reopen; source changes limited to the explicit fixture revision.`,
   );
 } finally {
   await cli?.close();

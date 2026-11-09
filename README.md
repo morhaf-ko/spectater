@@ -11,7 +11,7 @@ bun install --frozen-lockfile --ignore-scripts
 bun run bin/spectater.js open --project /path/to/project --change change-id
 ```
 
-From an installed package, use `spectater` instead of the checkout launcher. No registry release is published yet. Automatic opening is implemented for macOS; elsewhere use `--no-open` and the printed URL. The URL uses the change name; its secret fragment disappears after opening. Keep the initial link private. Ctrl-C stops the server without deleting saved feedback.
+For the published package, install with `bun add --global spectater@0.1.0` and use `spectater` instead of the checkout launcher. Automatic opening is implemented for macOS; elsewhere use `--no-open` and the printed URL. The URL uses the change name; its secret fragment disappears after opening. Keep the initial link private. Ctrl-C stops the server without deleting saved feedback.
 
 ## Review
 
@@ -46,7 +46,7 @@ Native OpenSpec selects the root, schema and artifact paths, including declared/
 
 Raw HTML and diagrams remain inert; remote images do not load. Relative links do not navigate. Unmapped selection boundaries require Source. Limits are 1 MiB/file, 128 artifacts, 16 MiB current source, 64 MiB private state, 10,000 characters/selection or comment, and 256 observed directories. Git comparisons are bounded to 3 seconds/256 KiB output.
 
-macOS is exercised. Linux private storage/IPC/manual opening are implemented; the prepared Linux CI workflow has not run remotely. Windows storage/IPC/opening are unsupported. See [security](SECURITY.md), [the security pass](docs/security-review.md) and [verification](docs/verification.md).
+macOS and Linux storage/IPC/browser flows are exercised. Automatic opening is macOS-only; Linux prints the manual URL. Windows storage/IPC/opening are unsupported. See [security](SECURITY.md), [the security pass](docs/security-review.md) and [verification](docs/verification.md).
 
 ## Development
 
@@ -54,8 +54,8 @@ macOS is exercised. Linux private storage/IPC/manual opening are implemented; th
 bun run check
 ```
 
-This runs Biome formatting/import/lint checks, contract/browser/package tests, the owned smoke, strict OpenSpec validation, whitespace checks and dependency audit. Use `bun run format` to apply Biome fixes. Install Chrome with `bun run playwright install chrome` if absent. Package tests use a temporary offline install, so fill Bun's cache through the frozen install first. `bun run benchmark` measures an isolated fixture; add `-- --project . --change local-change-review` for a full change.
+This runs Biome formatting/import/lint checks, contract/browser/package tests, the owned smoke, strict OpenSpec validation, whitespace checks and dependency audit. Use `bun run format` to apply Biome fixes. Install Chrome with `bun run playwright install chrome` if absent. Package installation and dependency audit require registry access. `bun run benchmark` measures an isolated fixture; add `-- --project . --change local-change-review` for a full change.
 
-The public CI workflow pins its actions, uses repository runner variables and skips automatic fork execution on those runners. Runner configuration/remote activation remains an operator step. Renovate is the sole update producer; automatic merges remain disabled pending reporting and required checks.
+The public CI workflow pins its actions and uses repository runner variables configured for isolated GitHub-hosted runners. The same-repository condition limits automatic execution; it is not a runner security boundary. Renovate is the sole update producer; automatic merges remain disabled pending reporting and required checks.
 
 Requirements/design/tasks live in [the OpenSpec change](openspec/changes/local-change-review/); [DESIGN.md](DESIGN.md) contains reusable visual tokens. The change remains unarchived pending acceptance. MIT license; see LICENSE.

@@ -22,10 +22,12 @@ A candidate development linter brought a moderate transitive advisory. The opera
 - Private same-user IPC shares one locked writer. Claims, cancellation, replacement and completion serialize with durable atomic state writes. Failed persistence never acknowledges a handoff. Ended reviews reject new feedback without discarding history.
 - Native diff gets private temporary snapshots, fixed arguments, isolated Git configuration, disabled external diff/textconv, a time/output budget and owned-directory cleanup. It never modifies canonical files.
 - Package allowlists exclude private state, repository automation, test artifacts and personal evidence. The installed package exercises current CLI paths.
-- CI actions/images are immutable pins, installs are frozen, permissions are contents-read, checkout credentials are not persisted, jobs have timeouts/concurrency, and fork code is not automatically assigned to operator runners. No publication token, OIDC write grant or deployment step is added.
+- CI actions/images are immutable pins, installs are frozen, permissions are contents-read, checkout credentials are not persisted, and jobs have timeouts/concurrency. Repository runner variables select isolated GitHub-hosted runners; no self-hosted runners are registered. No publication token, OIDC write grant or deployment step is added.
 
 ## Limits and remaining delivery work
 
-Same-user processes able to alter files/processes are outside this boundary. macOS is exercised; Linux CI/storage/IPC still need an actual Linux run. This pass is not fuzzing, assistive-technology certification or an independent release security review.
+Same-user processes able to alter files/processes are outside this boundary. macOS and Linux contract/browser flows are exercised. This self-review is not fuzzing, assistive-technology certification or an independent external audit.
 
-The GitHub runner variables are unset and remote jobs have not run. No settings, runner activation, push/merge, global installation, registry publication or release occurred. Dependency and workflow scanner outcomes are recorded in verification.md. Release still requires the operator's delivery/registry decisions and independent review where required.
+The independent read-only release review found one important CI issue: a fork can edit its proposed workflow and remove the same-repository condition. That condition cannot protect a private runner. The operator approved isolated GitHub-hosted runners instead; both runner variables and the absence of self-hosted runners were verified through GitHub. The finding and resolution are recorded in [PR #1](https://github.com/morhaf-ko/spectater/pull/1). The review reported no correctness or maintainability findings.
+
+Dependency and workflow scanner outcomes are recorded in verification.md. Merge and publication remain separate operator approvals.

@@ -12,7 +12,7 @@ Exercised: macOS, Bun 1.4.4, Node 24, OpenSpec 1.16.1 and installed headless Chr
 | Lint                | Biome formatting/import organization and recommended lint rules; zero findings                                                                                               |
 | Contract tests      | 34 passed: discovery/store/worktree identities, source mapping, filesystem/browser/IPC boundaries, bounded reads, persistence, queue races, lifecycle and native comparisons |
 | Headless Chrome     | 12 passed: real text/paragraph selection, favicon/themes, wait/submit/replies, automatic updates, draft preservation, queue correction, End/Resume and inert source diffs    |
-| Installed package   | 26 allowlisted files; temporary offline install; current skill/workflow/open/wait/retrieval/replacement/reply/refresh/end/reopen exercised                                   |
+| Installed package   | 26 allowlisted files; temporary Bun install; current skill/workflow/open/wait/retrieval/replacement/reply/refresh/end/reopen exercised                                       |
 | Owned smoke         | CLI readiness, manifest, private state, clean SIGTERM shutdown and unchanged canonical bytes                                                                                 |
 | Strict OpenSpec     | All current changes/specs validated without interactive prompts                                                                                                              |
 | Dependency audit    | No advisories across 140 audited dependency packages                                                                                                                         |
@@ -30,7 +30,9 @@ Queue tests serialize cancellation against handoff, preserve paused edits/replac
 
 Desktop 1440×900 and mobile 390×844 checks include light/dark reader, viewport-clamped composition, compact queues/history and source diffs. Screenshots are inspected separately from DOM assertions; they do not prove physical-device or assistive-technology conformance. The prior static-shell detector flagged the metadata type hierarchy; rendered document headings are separately sized. No aesthetic acceptance is inferred from automation.
 
-macOS is exercised. Linux storage/IPC/manual opening remain unverified on Linux until remote CI runs; Windows is unsupported. Runner variables are unset and no workflow was pushed/triggered. Renovate configuration was previously validated; bot activation and required-check settings remain unverified. The [security pass](security-review.md) is a self-review, not independent release approval. No release/publication is claimed.
+Linux CI exercised all 34 contracts and 11 Chrome 157 browser tests; the macOS opener test is intentionally skipped there. The first clean runner exposed an invalid package-test assumption that a frozen install populates registry manifests for a later offline install. The temporary package install now permits normal registry resolution. Current-head CI and final release evidence are reported in [PR #1](https://github.com/morhaf-ko/spectater/pull/1). Windows is unsupported.
+
+Repository runner variables select isolated GitHub-hosted runners. Renovate configuration was validated; bot access to the shared preset and required-check settings remain unverified, and automerge stays disabled. The [security pass](security-review.md) distinguishes self-review from the independent release review. No publication is inferred from passing checks.
 
 ## Performance sample
 
