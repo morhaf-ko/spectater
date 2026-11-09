@@ -136,10 +136,17 @@ export async function startServer(review, options = {}) {
       await review.mutate({ action: 'resume', revision: review.state.revision });
       return { status: 'resumed' };
     },
-    reply: async (input) => ({
-      status: 'recorded',
-      ...(await review.recordActivity(input.batch, input)),
-    }),
+    // Sandboxed agents (e.g. Codex on macOS) can leave file watching unavailable, so a reply
+    // re-reads the change first and reports a failed re-read instead of hiding it.
+    reply: async (input) => {
+      let sourceError;
+      if (!review.state.endedAt)
+        await review.refresh().catch((error) => {
+          sourceError = error.message;
+        });
+      const recorded = await review.recordActivity(input.batch, input);
+      return { status: 'recorded', ...recorded, ...(sourceError && { sourceError }) };
+    },
     stop: () => {
       setImmediate(onStop);
       return { status: 'stopping' };

@@ -104,6 +104,11 @@ The system SHALL reuse a running server for the same review identity and state l
 - **WHEN** open selects a review whose server is running
 - **THEN** the command returns that server's URL instead of starting another
 
+#### Scenario: Reply while file watching is unavailable
+
+- **WHEN** the agent replies after editing Markdown and the server could not observe the edit, for example inside an agent sandbox
+- **THEN** the server re-reads the change before recording the reply, so the reader shows the edits with the reply
+
 ### Requirement: On-demand skill delivery
 
 The system SHALL ship a short skill installable with `npx skills add` that tells the agent to read current guidance from `npx -y spectater workflow`. Installing the skill MUST NOT install hooks, register plugins or change agent configuration.

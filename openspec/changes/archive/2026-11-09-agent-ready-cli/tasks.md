@@ -34,4 +34,4 @@
 
 - [x] 6.1 Update contract, browser and package tests for every changed requirement; run `bun run check`.
 - [x] 6.2a Exercise the full loop from Claude Code against a fixture change.
-- [ ] 6.2b Exercise the full loop from Codex against a fixture change.
+- [x] 6.2b Exercise the full loop from Codex against a fixture change. Codex's macOS sandbox makes file watching fail (`EMFILE`), so replies now re-read the change before recording.
