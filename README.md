@@ -6,6 +6,11 @@
 
 Review [OpenSpec](https://github.com/Fission-AI/OpenSpec) changes in your browser and send selected-text feedback straight to your coding agent.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/reader-dark.png">
+  <img alt="The SpecTater reader: a rendered OpenSpec proposal with two comments and an agent reply in the sidebar" src="docs/images/reader-light.png">
+</picture>
+
 Your agent drafts a proposal, design, specs and tasks. SpecTater opens them in a local reader where you select text, comment, and submit. The agent receives your comments as structured JSON, revises the Markdown, and replies. The page updates as the files change. Everything stays on your machine.
 
 ## Quick start

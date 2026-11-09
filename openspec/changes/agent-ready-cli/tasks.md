@@ -23,14 +23,15 @@
 - [x] 4.1 Free-form message composer delivered in the batch before comments.
 - [x] 4.2 Send & End and keyboard shortcuts.
 
-- [ ] 4.3 Add a README screenshot of the reader.
+- [x] 4.3 Add a README screenshot of the reader.
 
 ## 5. Distribution
 
-- [ ] 5.1 Move the skill to skills/spectater/SKILL.md as a stub that runs `npx -y spectater workflow`; verify `npx skills add` installs it.
+- [x] 5.1 Move the skill to skills/spectater/SKILL.md as a stub that runs `npx -y spectater workflow`; verify `npx skills add` installs it.
 - [x] 5.2 `setup hooks` and `setup hooks --remove` for Claude Code, Codex, OpenCode and Copilot CLI; `status --hook` output.
 
 ## 6. Verification
 
 - [x] 6.1 Update contract, browser and package tests for every changed requirement; run `bun run check`.
-- [ ] 6.2 Exercise the full loop once each from Claude Code and Codex against a fixture change.
+- [x] 6.2a Exercise the full loop from Claude Code against a fixture change.
+- [ ] 6.2b Exercise the full loop from Codex against a fixture change.
