@@ -269,7 +269,8 @@ export async function openStore(review, directory = stateDirectory()) {
       throw unavailable;
     }
     if (!(await abandoned(moved))) {
-      await link(moved, lock).catch(() => {});
+      // Restore the live lock; if another process took the name meanwhile, keep it aside for inspection.
+      await link(moved, lock);
       await unlink(moved);
       throw unavailable;
     }
