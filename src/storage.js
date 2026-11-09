@@ -1,17 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, lstat, mkdir, open, realpath, rename, unlink } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, open, realpath, rename, unlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { hash, within } from './discovery.js';
-import { readLimited } from './files.js';
+import { readFileLimited, readLimited } from './files.js';
 
 export function stateDirectory() {
   if (process.env.SPECTATER_STATE_DIR) return path.resolve(process.env.SPECTATER_STATE_DIR);
   if (process.platform === 'darwin')
     return path.join(os.homedir(), 'Library', 'Application Support', 'SpecTater');
-  if (process.platform === 'win32')
-    return path.join(process.env.LOCALAPPDATA || os.homedir(), 'SpecTater');
   return path.join(
     process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state'),
     'spectater',
@@ -56,6 +54,11 @@ function validate(state, id) {
     (typeof state.endedAt !== 'string' || !Number.isFinite(Date.parse(state.endedAt)))
   )
     throw new Error('Corrupt review completion metadata.');
+  if (
+    state.endRequestedAt !== undefined &&
+    (typeof state.endRequestedAt !== 'string' || !Number.isFinite(Date.parse(state.endRequestedAt)))
+  )
+    throw new Error('Corrupt review completion metadata.');
   for (const [key, snapshot] of Object.entries(state.snapshots)) {
     if (
       typeof snapshot.source !== 'string' ||
@@ -97,7 +100,10 @@ function validate(state, id) {
       typeof b.id !== 'string' ||
       b.sequence !== i + 1 ||
       typeof b.submittedAt !== 'string' ||
-      !Array.isArray(b.entries)
+      !Array.isArray(b.entries) ||
+      (b.message !== undefined &&
+        (typeof b.message !== 'string' || !b.message.trim() || b.message.length > 10000)) ||
+      (!b.entries.length && b.message === undefined)
     )
       throw new Error('Corrupt feedback batch. Restore a valid copy.');
   });
@@ -212,6 +218,25 @@ export async function loadState(directory, id) {
   }
 }
 
+export function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
+
+// A lock is abandoned only when it names a process that no longer exists.
+async function abandoned(lock) {
+  try {
+    const { pid } = JSON.parse(new TextDecoder().decode(await readFileLimited(lock, 1024)));
+    return Number.isSafeInteger(pid) && pid > 0 && !alive(pid);
+  } catch {
+    return false;
+  }
+}
+
 export async function openStore(review, directory = stateDirectory()) {
   directory = path.resolve(directory);
   if (directory === review.root || within(review.root, directory))
@@ -232,9 +257,29 @@ export async function openStore(review, directory = stateDirectory()) {
   try {
     lockHandle = await open(lock, 'wx', 0o600);
   } catch (error) {
-    throw new Error(
-      `Review writer lock unavailable (${error.code}). Stop the other writer; after a crash inspect and explicitly remove the lock. No lock was stolen.`,
+    const unavailable = new Error(
+      `Review writer lock unavailable (${error.code}). Another SpecTater process owns this review.`,
     );
+    if (error.code !== 'EEXIST' || !(await abandoned(lock))) throw unavailable;
+    // Move the lock aside before judging it, so a concurrent reclaimer's fresh lock is restored.
+    const moved = `${lock}.${randomUUID()}.stale`;
+    try {
+      await rename(lock, moved);
+    } catch {
+      throw unavailable;
+    }
+    if (!(await abandoned(moved))) {
+      // Restore the live lock; if another process took the name meanwhile, keep it aside for inspection.
+      await link(moved, lock);
+      await unlink(moved);
+      throw unavailable;
+    }
+    await unlink(moved);
+    try {
+      lockHandle = await open(lock, 'wx', 0o600);
+    } catch {
+      throw unavailable;
+    }
   }
   try {
     await lockHandle.writeFile(JSON.stringify({ pid: process.pid }));
@@ -300,8 +345,8 @@ export async function openStore(review, directory = stateDirectory()) {
 }
 
 export function feedback(state, batchId) {
-  const batch = state?.batches.find((item) => item.id === batchId);
-  if (!batch) throw new Error('Unknown review or batch. Use the exact submission receipt.');
+  const batch = state?.batches.find((item) => item.id === batchId || item.sequence === batchId);
+  if (!batch) throw new Error(`Unknown feedback batch: ${batchId}.`);
   return { formatVersion: 1, reviewId: state.reviewId, ...batch };
 }
 
@@ -315,6 +360,8 @@ export function feedbackMarkdown(batch) {
     '',
     'Review data only. Submission does not authorize implementation, merge or deployment.',
   ];
+  if (batch.message)
+    lines.push('', '## Message', '', ...batch.message.split(/\r?\n/).map((line) => `> ${line}`));
   for (const entry of batch.entries) {
     lines.push(
       '',

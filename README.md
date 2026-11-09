@@ -1,61 +1,114 @@
 # SpecTater
 
-Read and comment on one local OpenSpec change. Markdown stays authoritative; feedback and source snapshots persist privately outside the repository.
+[![Check](https://github.com/morhaf-ko/spectater/actions/workflows/check.yml/badge.svg)](https://github.com/morhaf-ko/spectater/actions/workflows/check.yml)
+[![npm](https://img.shields.io/npm/v/spectater)](https://www.npmjs.com/package/spectater)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-## Run
+Review [OpenSpec](https://github.com/Fission-AI/OpenSpec) changes in your browser and send selected-text feedback straight to your coding agent.
 
-Use Bun 1.4.4 and OpenSpec 1.16.1 (also verified: 1.15.0). OpenSpec retains its upstream Node prerequisites; Node 24 is tested. Native Git enables optional source comparisons.
+Your agent drafts a proposal, design, specs and tasks. SpecTater opens them in a local reader where you select text, comment, and submit. The agent receives your comments as structured JSON, revises the Markdown, and replies. The page updates as the files change. Everything stays on your machine.
+
+## Quick start
+
+Install the skill for your agent:
 
 ```sh
-bun install --frozen-lockfile --ignore-scripts
-bun run bin/spectater.js open --project /path/to/project --change change-id
+npx skills add morhaf-ko/spectater
 ```
 
-For the published package, install with `bun add --global spectater@0.1.0` and use `spectater` instead of the checkout launcher. Automatic opening is implemented for macOS; elsewhere use `--no-open` and the printed URL. The URL uses the change name; its secret fragment disappears after opening. Keep the initial link private. Ctrl-C stops the server without deleting saved feedback.
+Then ask your agent to review a change, for example "review the add-dark-mode proposal with spectater". The skill tells the agent to run `npx -y spectater`, so there is nothing else to install.
 
-## Review
+Without the skill, tell the agent: "Run `npx -y spectater workflow` and follow it for the add-dark-mode change."
 
-1. Read rendered Markdown or exact Source. Select text to open the comment popover. Selections across formatting/paragraphs use labeled enclosing-source precision.
-2. Save comments, then submit new or changed feedback. A listening agent receives the batch; otherwise it stays queued.
-3. Before delivery, Edit queued pauses a batch for correction and explicit replacement. Cancel submission preserves its comments. After delivery, Send correction creates new feedback without recalling instructions.
-4. Source saves update the reader automatically. Old comments become stale/orphaned; reattachment is explicit. What changed compares the latest source update with the previous one, including added/removed files.
-5. End review preserves read-only history and tells a waiting agent to stop listening. Deliver or cancel queued batches first. Resume review or `open --reopen` explicitly resumes; a normal open does not silently restart an ended review.
+Requirements: Node 22.12 or newer, OpenSpec 1.15 or newer, macOS or Linux. Git is optional; it powers the "What changed" diff.
 
-The sun/moon button initially follows your system. Details restores System appearance. Metadata, withdrawn history and copy/download use collapsed disclosures. Draft text may recover in the same tab; save comments for durable storage.
+## How it works
 
-Submission, replies, task completion and End review never grant implementation, merge or deployment approval. SpecTater does not start, interrupt or wake models. See [the existing-conversation workflow](docs/workflow.md) for bounded waiting, replies and the supplied on-demand skill.
+```
+agent: spectater open add-dark-mode    → server starts in the background, browser opens
+you:   select text, comment, Submit     → feedback is saved and queued
+agent: spectater wait add-dark-mode     → receives the batch as JSON
+agent: spectater reply … --status working, edits Markdown, spectater reply … --message-file result.md
+you:   see the update and the reply; comment again or click End review
+```
 
-## Preferences and storage
+Every agent command prints one JSON object with a `status` and a `next_step`, so the agent always knows what to do next:
 
-No config is required. Defaults are rendered view, a browser-opening attempt and private platform storage. An optional JSON file at `$XDG_CONFIG_HOME/spectater/config.json` (otherwise `~/.config/spectater/config.json`) may contain:
+| `status`            | Meaning                                        | Exit code |
+| ------------------- | ---------------------------------------------- | --------- |
+| `batch`             | Feedback delivered in `batch`                  | 0         |
+| `timeout`           | No feedback within `--timeout` (default 540 s) | 0         |
+| `ended`             | You ended the review                           | 0         |
+| `error`             | The command failed; see `error`                | 1         |
+| `stopped`           | The review server is not running               | 3         |
+| `listener_active`   | Another `wait` is already listening            | 4         |
+| `listener_replaced` | Another `wait --takeover` replaced this one    | 5         |
+
+Until the agent replies to a batch, `wait` returns that batch again, so feedback is never lost if the agent is interrupted.
+
+Other commands report `ready` or `reused` (`open`), `recorded` (`reply`), `refreshed` (`refresh`), `ended` (`end`), `stopping` or `not_running` (`stop`), and `stopped` (exit 3) when no server is running. Any command can return `error` (exit 1).
+
+## In the browser
+
+- Select text in the rendered view or the Markdown source, then comment. Enter saves; Cmd/Ctrl+Enter saves and submits.
+- Write a message to the agent that is not tied to a selection.
+- Submit sends only new or changed comments. Until the agent picks a batch up you can edit or cancel it.
+- **Send & End** submits and ends the review once the agent has received the final batch.
+- Comments on text that later changes are marked stale (with a suggested re-anchor) or orphaned; nothing is silently moved.
+- "What changed" diffs the latest source update against the previous one.
+
+## Commands
+
+| Command                                   | Description                                                                                                       |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `spectater`                               | List open reviews and usage.                                                                                      |
+| `spectater open <change>`                 | Start or reuse the review server and open the browser. `--no-open`, `--reopen`.                                   |
+| `spectater wait <change>`                 | Wait for feedback. `--timeout <seconds>`, `--takeover`, `--format markdown`.                                      |
+| `spectater reply <change>`                | `--status working`, or post a result with `--message` / `--message-file`. `--batch <n>` targets an earlier batch. |
+| `spectater feedback <change> --batch <n>` | Print a submitted batch without recording delivery.                                                               |
+| `spectater refresh <change>`              | Re-read the change from disk.                                                                                     |
+| `spectater end <change>`                  | End the review.                                                                                                   |
+| `spectater stop <change>`                 | Stop the server. Saved feedback is kept.                                                                          |
+| `spectater workflow`                      | Print the agent review loop.                                                                                      |
+| `spectater skill`                         | Print the agent skill.                                                                                            |
+| `spectater setup hooks`                   | Add SessionStart hooks (see below). `--remove` undoes it.                                                         |
+
+Run commands from the project directory, or pass `--project <dir>`. Use `--store <id>` for an OpenSpec store.
+
+## Session hooks (optional)
+
+To have new agent sessions see reviews that are already open, install SpecTater globally and add the hooks:
+
+```sh
+npm install -g spectater
+spectater setup hooks
+```
+
+For each agent that is installed, this adds a SessionStart hook for Claude Code (`~/.claude/settings.json`), Codex (`~/.codex/hooks.json`; approve it once with `/hooks`), OpenCode (`~/.config/opencode/plugins/spectater.js`) and GitHub Copilot CLI (`~/.copilot/hooks/spectater.json`). The hook runs `spectater status --hook`, which prints open reviews for the current project and nothing otherwise. It never blocks or drives the agent. Restart your agent sessions afterwards.
+
+## Configuration
+
+No configuration is required. An optional `~/.config/spectater/config.json` (or `$XDG_CONFIG_HOME/spectater/config.json`, or `--config <file>`, or `SPECTATER_CONFIG`) accepts:
 
 ```json
-{
-  "defaultView": "source",
-  "openBrowser": false
-}
+{ "defaultView": "source", "openBrowser": false, "stateDirectory": "/absolute/path" }
 ```
 
-`stateDirectory` optionally selects an absolute private path. `--config` overrides `SPECTATER_CONFIG`, which overrides the default config path; `SPECTATER_STATE_DIR` overrides the storage preference. `--no-open` always suppresses opening. Repo content cannot configure the process. Invalid settings fail visibly.
+| Variable                 | Effect                                                                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `SPECTATER_STATE_DIR`    | Where reviews are stored. Default: `~/Library/Application Support/SpecTater` on macOS, `$XDG_STATE_HOME/spectater` on Linux. |
+| `SPECTATER_IDLE_TIMEOUT` | Seconds before an unused server stops itself. Default 1800; `0` disables.                                                    |
 
-Storage defaults to `~/Library/Application Support/SpecTater` on macOS and `$XDG_STATE_HOME/spectater` (otherwise `~/.local/state/spectater`) on Linux. Back it up separately from Git; feedback exports are not full state backups. Corrupt state is preserved, and conflicting writers are refused. After a crash, verify the recorded writer has stopped before explicitly removing its lock. Moving a worktree or changing storage does not migrate review identity automatically.
+Review state lives outside your repository and is never uploaded. Back it up separately if you need the history.
 
-## Boundaries
+## Security and limits
 
-Native OpenSpec selects the root, schema and artifact paths, including declared/explicit stores and isolated worktrees. Unselected global stores are refused. Only that selected change is observed; there is no polling scanner, account, hosted backend or installed hook.
+The server listens on `127.0.0.1` only. The URL contains a private token; anyone with it can read and comment on the review, so do not share it. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. Windows is not supported. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
-Raw HTML and diagrams remain inert; remote images do not load. Relative links do not navigate. Unmapped selection boundaries require Source. Limits are 1 MiB/file, 128 artifacts, 16 MiB current source, 64 MiB private state, 10,000 characters/selection or comment, and 256 observed directories. Git comparisons are bounded to 3 seconds/256 KiB output.
+## Contributing
 
-macOS and Linux storage/IPC/browser flows are exercised. Automatic opening is macOS-only; Linux prints the manual URL. Windows storage/IPC/opening are unsupported. See [security](SECURITY.md), [the security pass](docs/security-review.md) and [verification](docs/verification.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Requirements live in [`openspec/specs`](openspec/specs) and in-flight changes in [`openspec/changes`](openspec/changes).
 
-## Development
+## License
 
-```sh
-bun run check
-```
-
-This runs Biome formatting/import/lint checks, contract/browser/package tests, the owned smoke, strict OpenSpec validation, whitespace checks and dependency audit. Use `bun run format` to apply Biome fixes. Install Chrome with `bun run playwright install chrome` if absent. Package installation and dependency audit require registry access. `bun run benchmark` measures an isolated fixture; add `-- --project . --change local-change-review` for a full change.
-
-The public CI workflow pins its actions and uses repository runner variables configured for isolated GitHub-hosted runners. The same-repository condition limits automatic execution; it is not a runner security boundary. Renovate is the sole update producer; automatic merges remain disabled pending reporting and required checks.
-
-Requirements/design/tasks live in [the OpenSpec change](openspec/changes/local-change-review/); [DESIGN.md](DESIGN.md) contains reusable visual tokens. The change remains unarchived pending acceptance. MIT license; see LICENSE.
+[MIT](LICENSE). Interface tokens adapt the Apache-2.0 [Open Design](https://github.com/nexu-io/open-design) Clean system; see [docs/licenses/open-design.txt](docs/licenses/open-design.txt).

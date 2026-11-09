@@ -1,11 +1,11 @@
 # Project guidance
 
-Read README.md and the selected OpenSpec change before working. Keep instructions short and task-specific detail in planning artifacts.
+Read README.md and CONTRIBUTING.md before working. Behaviour is specified in `openspec/specs`; put behaviour changes in an OpenSpec change under `openspec/changes` and keep code, specs and tests in step.
 
-This is an OpenSpec-only local developer tool. Preserve canonical Markdown and use native OpenSpec root, schema and status discovery. Never treat task completion, comments or viewer buttons as production or merge approval.
-
-The operator approved implementation of local-change-review. Keep implementation within its contracts. Hooks, deployment, registry publication and releases require separate authorization.
-
-Favor existing platform capabilities, deterministic rendering and a small dependency surface. No accounts, hosted backend, embedded AI or agent lifecycle controller in the initial scope.
-
-Keep public content independent of private infrastructure, credentials and personal operational evidence. Record actual verification and unsupported behavior explicitly.
+- Native OpenSpec is the authority for roots, schemas and artifact paths. Do not reimplement discovery.
+- Markdown on disk is canonical. SpecTater never writes it.
+- Agent commands print exactly one JSON object with `status` and `next_step`; keep statuses and exit codes stable and documented in README.md.
+- Review feedback, replies and ending a review never imply approval to implement, merge or deploy.
+- No accounts, hosted services, telemetry or embedded models. Hooks only report open reviews; they never drive the agent.
+- Keep runtime dependencies minimal and the browser client framework-free.
+- Run `bun run check` before proposing a change.

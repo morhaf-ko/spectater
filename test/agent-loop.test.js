@@ -1,21 +1,25 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
-import { stat, unlink, writeFile } from 'node:fs/promises';
-import http from 'node:http';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { test } from 'node:test';
-import { promisify } from 'node:util';
-import { launchFixture } from '../scripts/cli-fixture.js';
-import { activeReview, controlPath, controlRequest, startControl } from '../src/control.js';
+import { cli, launchFixture } from '../scripts/cli-fixture.js';
+import { agentRequest, listServers } from '../src/agent.js';
+import { setupHooks } from '../src/hooks.js';
 import { openReview } from '../src/review.js';
 import { startServer } from '../src/server.js';
+import { alive } from '../src/storage.js';
 import { fixture } from './helpers.js';
 
-async function submit(review, body = 'Agent feedback.') {
+const bin = 'bin/spectater.js';
+
+async function comment(review, body = 'Agent feedback.') {
   const d = review.view().documents[0],
     start = d.source.indexOf('exact');
-  await review.mutate({
+  return review.mutate({
     action: 'comment',
-    revision: review.view().revision,
+    revision: review.state.revision,
     documentId: d.id,
     hash: d.hash,
     start,
@@ -24,141 +28,154 @@ async function submit(review, body = 'Agent feedback.') {
     precision: 'exact',
     body,
   });
-  return review.mutate({ action: 'submit', revision: review.view().revision });
 }
+async function submit(review, body, extra = {}) {
+  await comment(review, body);
+  return review.mutate({ action: 'submit', revision: review.state.revision, ...extra });
+}
+async function served(t, options) {
+  const f = await fixture();
+  const review = await openReview(f.options, { directory: f.stateDir });
+  const server = await startServer(review, options);
+  t.after(async () => {
+    await server.close();
+    await f.cleanup();
+  });
+  return {
+    f,
+    review,
+    server,
+    agent: (op, input, timeout) => agentRequest(server, op, input, timeout),
+  };
+}
+const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 
-test('private IPC delivers queued batches repeatably, validates budgets and isolates state locations', async (t) => {
+test('wait redelivers a batch until the agent replies, then delivers the next one', async (t) => {
+  const { review, agent } = await served(t);
+  await submit(review, 'First.');
+  const first = await agent('wait', { timeout: 0 });
+  assert.equal(first.status, 'batch');
+  assert.equal(first.batch.sequence, 1);
+  assert.equal(review.view().activity[first.batch.id].status, 'received');
+  assert.deepEqual((await agent('wait', { timeout: 0 })).batch, first.batch);
+  assert.equal((await agent('reply', { status: 'working' })).batch, 1);
+  assert.equal((await agent('wait', { timeout: 0 })).batch.id, first.batch.id);
+  await agent('reply', { status: 'done', body: 'Revised.' });
+  assert.equal((await agent('wait', { timeout: 10 })).status, 'timeout');
+  await submit(review, 'Second.');
+  assert.equal((await agent('wait', { timeout: 0 })).batch.sequence, 2);
+  await assert.rejects(agent('wait', { timeout: -1 }), /timeout must be/);
+  await assert.rejects(agent('reply', { status: 'done', body: '' }), /1–10,000/);
+  await assert.rejects(agent('reply', { status: 'done', body: 'x', batch: 9 }), /Unknown/);
+});
+
+test('one listener at a time: a second wait is refused unless it takes over', async (t) => {
+  const { review, agent } = await served(t);
+  const first = agent('wait', { timeout: 5000 }, 10000);
+  while (!(await agent('status')).listening) await tick();
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'listener_active');
+  const second = agent('wait', { timeout: 5000, takeover: true }, 10000);
+  assert.equal((await first).status, 'listener_replaced');
+  await submit(review, 'For the new listener.');
+  assert.equal((await second).batch.entries[0].body, 'For the new listener.');
+});
+
+test('a waiting agent receives ended, and stopped when the server closes', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  const review = await openReview(f.options, { directory: f.stateDir });
+  let server = await startServer(review);
+  const agent = (op, input) => agentRequest(server, op, input, 10000);
+  let pending = agent('wait', { timeout: 5000 });
+  while (!(await agent('status')).listening) await tick();
+  await agent('end');
+  assert.equal((await pending).status, 'ended');
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'ended');
+  await agent('resume');
+  pending = agent('wait', { timeout: 5000 });
+  while (!(await agent('status')).listening) await tick();
+  const closed = server.close();
+  assert.equal((await pending).status, 'stopped');
+  await closed;
+  server = null;
+});
+
+test('Send & End ends the review only after the final batch is delivered', async (t) => {
+  const { review, agent } = await served(t);
+  await review.mutate({
+    action: 'submit',
+    revision: review.state.revision,
+    message: 'Overall: tighten the scope.',
+    end: true,
+  });
+  assert.equal(review.state.endedAt, undefined);
+  assert.ok(review.view().endRequestedAt);
+  const final = await agent('wait', { timeout: 0 });
+  assert.equal(final.batch.message, 'Overall: tighten the scope.');
+  assert.deepEqual(final.batch.entries, []);
+  assert.ok(review.state.endedAt);
+  assert.equal((await agent('wait', { timeout: 0 })).batch.id, final.batch.id);
+  await agent('reply', { status: 'done', body: 'Scope tightened.' });
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'ended');
+  await agent('resume');
+  await submit(review, 'Queued before Send & End.');
+  await review.mutate({ action: 'submit', revision: review.state.revision, end: true });
+  assert.equal(review.state.endedAt, undefined, 'a queued batch defers the end');
+  assert.equal((await agent('wait', { timeout: 0 })).batch.sequence, 2);
+  assert.ok(review.state.endedAt);
+  await agent('reply', { status: 'done', body: 'Handled.' });
+  await agent('resume');
+  await review.mutate({ action: 'submit', revision: review.state.revision, end: true });
+  assert.ok(review.state.endedAt, 'Send & End with nothing pending ends immediately');
+});
+
+test('idle servers stop themselves and active listeners keep them alive', async (t) => {
+  let idle;
+  const fired = new Promise((resolve) => {
+    idle = resolve;
+  });
+  const { review, agent } = await served(t, { idleTimeout: 200, onIdle: idle });
+  const waiting = agent('wait', { timeout: 400 });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  let early = false;
+  void fired.then(() => {
+    early = true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(early, false);
+  assert.equal((await waiting).status, 'timeout');
+  await fired;
+  assert.equal(review.state.batches.length, 0);
+});
+
+test('CLI runs the full loop against a detached server addressed by change name', async (t) => {
   const f = await fixture();
   let server;
   t.after(async () => {
     await server?.close();
     await f.cleanup();
   });
-  const review = await openReview(f.options, { directory: f.stateDir });
-  server = await startServer(review);
-  const id = review.state.reviewId;
-  await submit(review);
-  const first = await controlRequest(f.stateDir, id, '/next?after=0&wait=0');
-  assert.equal(first.status, 'batch');
-  assert.equal(first.batch.sequence, 1);
-  assert.deepEqual(await controlRequest(f.stateDir, id, '/next?after=0&wait=0'), first);
-  assert.equal((await controlRequest(f.stateDir, id, '/next?after=1&wait=10')).status, 'timeout');
-  await assert.rejects(controlRequest(f.stateDir, id, '/next?after=0&wait=55001'), /budget/);
-  await assert.rejects(controlRequest(f.stateDir, id, '/next?after=2&wait=0'), /cursor/);
-  assert.equal(await activeReview(f.directory, id), null);
-  assert.equal((await stat(await controlPath(f.stateDir, id))).mode & 0o777, 0o600);
-});
-
-test('a waiting listener receives only after durable submission and shutdown ends another wait', async (t) => {
-  const f = await fixture();
-  let control, review;
-  t.after(async () => {
-    await control?.close();
-    await review?.close();
-    await f.cleanup();
-  });
-  review = await openReview(f.options, { directory: f.stateDir });
-  let ready;
-  const listening = new Promise((resolve) => {
-    ready = resolve;
-  });
-  control = await startControl(review, 'http://127.0.0.1/review', (count) => {
-    if (count) ready();
-  });
-  const id = review.state.reviewId;
-  const result = controlRequest(f.stateDir, id, '/next?after=0&wait=5000', 'GET', 6000);
-  await listening;
-  await submit(review);
-  const delivered = await result;
-  assert.equal(delivered.status, 'batch');
-  assert.equal(delivered.batch.entries[0].body, 'Agent feedback.');
-  const disk = JSON.parse(
-    await (await import('node:fs/promises')).readFile(`${f.stateDir}/${id}.json`, 'utf8'),
-  );
-  assert.equal(disk.batches[0].id, delivered.batch.id);
-  const waitingAgain = new Promise((resolve) => {
-    ready = resolve;
-  });
-  const stopped = controlRequest(f.stateDir, id, '/next?after=1&wait=5000', 'GET', 6000);
-  await waitingAgain;
-  await control.close();
-  control = null;
-  assert.equal((await stopped).status, 'stopped');
-});
-
-test('IPC startup refuses to replace a regular file', async (t) => {
-  const f = await fixture();
-  const review = await openReview(f.options, { directory: f.stateDir });
-  const socket = await controlPath(f.stateDir, review.state.reviewId);
-  t.after(async () => {
-    await unlink(socket);
-    await review.close();
-    await f.cleanup();
-  });
-  await writeFile(socket, 'preserve', { mode: 0o600 });
-  await assert.rejects(
-    startControl(review, 'http://127.0.0.1', () => {}),
-    /Refusing/,
-  );
-  assert.equal((await stat(socket)).isFile(), true);
-});
-
-test('disconnect cancels only that listener and retains the review state', async (t) => {
-  const f = await fixture();
-  let control, review;
-  t.after(async () => {
-    await control?.close();
-    await review?.close();
-    await f.cleanup();
-  });
-  review = await openReview(f.options, { directory: f.stateDir });
-  let ready, gone;
-  const listening = new Promise((resolve) => {
-    ready = resolve;
-  });
-  const disconnected = new Promise((resolve) => {
-    gone = resolve;
-  });
-  control = await startControl(review, 'http://127.0.0.1/review', (count) => {
-    if (count) ready();
-    else gone();
-  });
-  const request = http.get({
-    socketPath: await controlPath(f.stateDir, review.state.reviewId),
-    path: '/next?after=0&wait=5000',
-    agent: false,
-  });
-  request.on('error', () => {});
-  await listening;
-  request.destroy();
-  await disconnected;
-  assert.equal(review.state.batches.length, 0);
-  await submit(review, 'After disconnect.');
+  server = await launchFixture(bin, f);
+  const run = server.run;
+  assert.equal(server.opened.status, 'ready');
+  assert.equal(new URL(server.url).pathname, '/review/example');
+  const record = (await listServers(f.stateDir))[0];
   assert.equal(
-    (await controlRequest(f.stateDir, review.state.reviewId, '/next?after=0&wait=0')).batch
-      .entries[0].body,
-    'After disconnect.',
+    (await stat(path.join(f.stateDir, `${record.reviewId}.server.json`))).mode & 0o777,
+    0o600,
   );
-});
+  assert.equal(JSON.parse((await run(['open', 'example', '--no-open'])).stdout).status, 'reused');
+  assert.match((await run([])).stdout, /- example .*spectater wait example/);
+  const nested = path.join(f.project, 'openspec', 'changes', 'example');
+  assert.equal(
+    JSON.parse((await run(['wait', 'example', '--timeout', '0'], { cwd: nested })).stdout).status,
+    'timeout',
+  );
 
-test('installed-style CLI reuses an active review and retrieves queued feedback offline', async (t) => {
-  const f = await fixture();
-  let cli;
-  t.after(async () => {
-    await cli?.close();
-    await f.cleanup();
-  });
-  const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
-  const run = (args) =>
-    promisify(execFile)(process.execPath, ['bin/spectater.js', ...args], { env, timeout: 15000 });
-  cli = await launchFixture('bin/spectater.js', f);
-  let view = await cli.request('state');
-  const reopened = await run(['open', '--project', f.project, '--change', 'example', '--no-open']);
-  assert.match(reopened.stdout, /Reused active review/);
-  assert.ok(reopened.stdout.includes(cli.url));
+  let view = await server.request('state');
   const d = view.documents[0],
     start = d.source.indexOf('exact');
-  view = await cli.request('action', {
+  view = await server.request('action', {
     action: 'comment',
     revision: view.revision,
     documentId: d.id,
@@ -167,67 +184,143 @@ test('installed-style CLI reuses an active review and retrieves queued feedback 
     end: start + 5,
     quote: 'exact',
     precision: 'exact',
-    body: 'Offline queue.',
+    body: 'From the browser.',
   });
-  view = await cli.request('action', { action: 'submit', revision: view.revision });
-  const args = [
-    'feedback',
-    '--review',
-    view.reviewId,
-    '--after',
-    '0',
-    '--wait',
-    '0',
-    '--format',
-    'json',
-  ];
-  const before = await run(args);
-  assert.equal(JSON.parse(before.stdout).status, 'batch');
-  await cli.close();
-  cli = null;
-  assert.equal((await run(args)).stdout, before.stdout);
-  assert.match((await run(['workflow'])).stdout, /refresh --review/);
-  assert.match((await run(['skill'])).stdout, /name: spectater/);
+  await server.request('action', { action: 'submit', revision: view.revision, message: 'Hi.' });
+  const delivered = JSON.parse((await run(['wait', 'example'])).stdout);
+  assert.equal(delivered.status, 'batch');
+  assert.equal(delivered.batch.message, 'Hi.');
+  assert.match(delivered.next_step, /reply --status working/);
+  assert.equal(
+    JSON.parse((await run(['reply', 'example', '--status', 'working'])).stdout).status,
+    'recorded',
+  );
+  const result = path.join(f.directory, 'result.md');
+  await writeFile(result, 'Revised the proposal.\n');
+  assert.equal(
+    JSON.parse((await run(['reply', 'example', '--message-file', result])).stdout).batch,
+    1,
+  );
+  assert.equal((await server.request('state')).activity[delivered.batch.id].status, 'replied');
+  const markdown = (await run(['feedback', 'example', '--batch', '1', '--format', 'markdown']))
+    .stdout;
+  assert.match(markdown, /## Message\n\n> Hi\./);
+  assert.doesNotMatch(markdown, new RegExp(f.directory));
+
+  assert.equal(JSON.parse((await run(['end', 'example'])).stdout).status, 'ended');
+  assert.equal(
+    JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).status,
+    'ended',
+  );
+  await assert.rejects(run(['open', 'example', '--no-open']), /Use --reopen/);
+  assert.equal(
+    JSON.parse((await run(['open', 'example', '--no-open', '--reopen'])).stdout).status,
+    'reused',
+  );
+  await server.close();
+  const stopped = await run(['wait', 'example', '--timeout', '0']).catch((error) => error);
+  assert.equal(stopped.code, 3);
+  assert.equal(JSON.parse(stopped.stdout).status, 'stopped');
+  assert.deepEqual(await listServers(f.stateDir), []);
+  assert.equal(JSON.parse((await run(['feedback', 'example', '--batch', '1'])).stdout).sequence, 1);
+  assert.match((await run(['workflow'])).stdout, /spectater wait <change>/);
+  assert.match((await run(['skill'])).stdout, /^---\nname: spectater\n/);
+  const bad = await run(['wait', 'missing-change', '--timeout', '0']).catch((error) => error);
+  assert.equal(JSON.parse(bad.stdout).status, 'error');
 });
 
-test('activity survives restart without changing immutable batches and repeated receipts/replies are idempotent', async (t) => {
+test('a crashed server leaves no lock or record that blocks the next open', async (t) => {
   const f = await fixture();
-  let server, review;
+  let server;
   t.after(async () => {
     await server?.close();
     await f.cleanup();
   });
-  review = await openReview(f.options, { directory: f.stateDir });
-  server = await startServer(review);
-  await submit(review);
-  const id = review.state.reviewId,
-    batchId = review.state.batches[0].id;
-  const immutable = JSON.stringify(review.state.batches);
-  const record = (endpoint, input) =>
-    controlRequest(f.stateDir, id, `${endpoint}?batch=${batchId}`, 'POST', 5000, input);
-  await record('/received');
-  const receivedRevision = review.state.revision;
-  await record('/received');
-  assert.equal(review.state.revision, receivedRevision);
-  assert.equal(review.view().activity[batchId].status, 'received');
-  await record('/reply', { status: 'working' });
-  assert.equal(review.view().activity[batchId].status, 'working');
-  // Agent metadata remains writable while source is being revised.
-  await writeFile(f.file, '# New source\n');
-  await record('/reply', { status: 'done', body: 'Revised the proposal; validation passed.' });
-  const revision = review.state.revision;
-  await record('/reply', { status: 'done', body: 'Revised the proposal; validation passed.' });
-  await record('/received');
-  await record('/reply', { status: 'working' });
-  assert.equal(review.state.revision, revision);
-  await assert.rejects(record('/reply', { status: 'done', body: '' }), /reply must contain/);
-  await assert.rejects(record('/reply', { status: 'received' }), /working or done/);
-  assert.equal(JSON.stringify(review.state.batches), immutable);
-  await server.close();
-  server = null;
-  review = await openReview(f.options, { directory: f.stateDir });
-  server = await startServer(review);
-  assert.equal(review.view().activity[batchId].status, 'replied');
-  assert.equal(review.view().activity[batchId].replies.length, 1);
-  assert.equal(JSON.stringify(review.state.batches), immutable);
+  server = await launchFixture(bin, f);
+  const { pid } = server;
+  process.kill(pid, 'SIGKILL');
+  while (alive(pid)) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(
+    JSON.parse((await server.run(['wait', 'example', '--timeout', '0']).catch((e) => e)).stdout)
+      .status,
+    'stopped',
+  );
+  server = await launchFixture(bin, f);
+  assert.equal(server.opened.status, 'ready');
+});
+
+test('setup hooks is idempotent, keeps unrelated hooks and removes only its own entries', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  const home = path.join(f.directory, 'home');
+  await mkdir(path.join(home, '.claude'), { recursive: true });
+  const other = { matcher: '', hooks: [{ type: 'command', command: 'echo keep' }] };
+  await writeFile(
+    path.join(home, '.claude', 'settings.json'),
+    JSON.stringify({ model: 'x', hooks: { SessionStart: [other] } }),
+  );
+  await mkdir(path.join(home, '.codex'), { recursive: true });
+  await mkdir(path.join(home, '.copilot'), { recursive: true });
+  const env = {};
+  const first = await setupHooks({ home, env });
+  assert.deepEqual(
+    first.map((r) => r.result),
+    ['updated', 'created', 'skipped (not installed)', 'created'],
+  );
+  assert.deepEqual(
+    (await setupHooks({ home, env })).map((r) => r.result),
+    ['unchanged', 'unchanged', 'skipped (not installed)', 'unchanged'],
+  );
+  const claude = JSON.parse(await readFile(path.join(home, '.claude', 'settings.json'), 'utf8'));
+  assert.equal(claude.model, 'x');
+  assert.equal(claude.hooks.SessionStart.length, 2);
+  await assert.rejects(stat(path.join(home, '.codex', 'config.toml')));
+  const copilot = JSON.parse(
+    await readFile(path.join(home, '.copilot', 'hooks', 'spectater.json'), 'utf8'),
+  );
+  assert.equal(copilot.hooks.sessionStart[0].bash, 'spectater status --hook copilot');
+  await setupHooks({ home, env, remove: true });
+  assert.deepEqual(
+    JSON.parse(await readFile(path.join(home, '.claude', 'settings.json'), 'utf8')),
+    { model: 'x', hooks: { SessionStart: [other] } },
+  );
+  await assert.rejects(stat(path.join(home, '.config', 'opencode', 'plugins', 'spectater.js')));
+});
+
+test('status --hook prints open reviews for this project only, and nothing otherwise', async (t) => {
+  const f = await fixture();
+  let server;
+  t.after(async () => {
+    await server?.close();
+    await f.cleanup();
+  });
+  const run = cli(bin, f);
+  assert.equal((await run(['status', '--hook'])).stdout, '');
+  assert.equal((await run(['status', '--hook', 'copilot'])).stdout, '{}\n');
+  server = await launchFixture(bin, f);
+  assert.match((await run(['status', '--hook'])).stdout, /spectater wait example/);
+  assert.equal((await run(['status', '--hook'], { cwd: f.directory })).stdout, '');
+  assert.match(
+    JSON.parse((await run(['status', '--hook', 'copilot'])).stdout).additionalContext,
+    /example/,
+  );
+});
+
+test('the serve process exits cleanly on SIGTERM and removes its record', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+  const child = spawn(
+    process.execPath,
+    [path.resolve(bin), 'serve', 'example', '--project', f.project],
+    {
+      env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile },
+      stdio: 'ignore',
+    },
+  );
+  while (!(await listServers(f.stateDir)).length)
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  child.kill('SIGTERM');
+  const [code] = await once(child, 'exit');
+  assert.equal(code, 0);
+  assert.deepEqual(await listServers(f.stateDir), []);
 });

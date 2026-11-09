@@ -354,11 +354,13 @@ function displayFeedback() {
     ? `Editing batch ${editing.sequence} · delivery paused. Edit saved comments, then update.`
     : '';
   $('submit').textContent = editing ? 'Update queued batch' : 'Submit batch';
-  $('submit').disabled = Boolean(state.endedAt) || !state.pendingCommentIds.length;
+  updateSubmit();
+  $('send-end').hidden = Boolean(state.endedAt || state.endRequestedAt);
+  $('end-pending').hidden = !state.endRequestedAt || Boolean(state.endedAt);
+  $('agent-message').disabled = Boolean(state.endedAt);
   $('review-lifecycle').textContent = state.endedAt ? 'Resume review' : 'End review';
   $('refresh').disabled = Boolean(state.endedAt);
   $('comment-hint').hidden ||= Boolean(state.endedAt);
-  $('submit').hidden = $('submit').disabled;
   $('receipts').replaceChildren();
   const history = element('details', '', 'batch-history');
   const historyCount = state.batches.filter((batch) =>
@@ -368,7 +370,7 @@ function displayFeedback() {
   for (const batch of [...state.batches].reverse()) {
     const receipt = element('div', '', 'receipt');
     receipt.append(
-      button(`Batch ${batch.sequence} · ${batch.count} comments`, () => showBatch(batch.id)),
+      button(`Batch ${batch.sequence} · ${batch.count} items`, () => showBatch(batch.id)),
     );
     const activity = state.activity?.[batch.id];
     const queue = state.queue?.[batch.id];
@@ -452,24 +454,26 @@ async function loadComparison(id) {
   }
 }
 async function operation(fn) {
-  if (busy) return;
+  if (busy) return false;
   busy = true;
   document.body.setAttribute('aria-busy', 'true');
   try {
     await fn();
+    return true;
   } catch (error) {
     announce(error.message, true);
     if ($('comment-popover').matches(':popover-open')) {
       $('composer-error').textContent = error.message;
       $('composer-error').hidden = false;
     }
+    return false;
   } finally {
     busy = false;
     document.body.setAttribute('aria-busy', 'false');
   }
 }
 async function action(input) {
-  await operation(async () => {
+  return operation(async () => {
     acceptState(await api('action', { ...input, revision: state.revision }));
     if (input.action === 'comment' || input.action === 'edit') {
       $('comment').value = '';
@@ -478,6 +482,7 @@ async function action(input) {
       persistDraft();
     }
     if (input.action === 'delete') undoDeletedId = input.id;
+    if (input.action === 'submit') $('agent-message').value = '';
     if (input.action === 'end') closeComposer();
     display();
     announce(
@@ -486,7 +491,11 @@ async function action(input) {
         : input.action === 'resume'
           ? 'Review resumed.'
           : input.action === 'submit'
-            ? 'Batch saved.'
+            ? state.endedAt
+              ? 'Review ended.'
+              : input.end
+                ? 'Batch saved. The review ends once the agent receives it.'
+                : 'Batch saved.'
             : input.action === 'cancel-batch'
               ? 'Submission cancelled. Comments kept.'
               : input.action === 'edit-batch'
@@ -495,14 +504,16 @@ async function action(input) {
                   ? 'Comment deleted.'
                   : 'Saved.',
     );
-    if (input.action === 'submit') await showBatch(state.batches.at(-1).id, false);
+    if (input.action === 'submit' && state.batches.length)
+      await showBatch(state.batches.at(-1).id, false);
   });
 }
 async function showBatch(id, open = true) {
   try {
     $('export').value = (await api(`batch/${id}`)).markdown;
+    const batch = state.batches.find((item) => item.id === id);
     $('retrieval-command').textContent =
-      `spectater feedback --review ${state.reviewId} --batch ${id} --format markdown --history`;
+      `spectater feedback ${state.change} --batch ${batch.sequence} --format markdown`;
     $('export-details').hidden = false;
     $('export-details').open = open;
   } catch (error) {
@@ -599,10 +610,14 @@ document.addEventListener('keyup', (event) => {
   )
     captureSelection();
 });
+function saveComment() {
+  if (editingId) return action({ action: 'edit', id: editingId, body: $('comment').value });
+  if (selection) return action({ action: 'comment', ...selection, body: $('comment').value });
+  return false;
+}
 $('comment-form').addEventListener('submit', (event) => {
   event.preventDefault();
-  if (editingId) action({ action: 'edit', id: editingId, body: $('comment').value });
-  else if (selection) action({ action: 'comment', ...selection, body: $('comment').value });
+  void saveComment();
 });
 $('comment').addEventListener('input', persistDraft);
 $('comment-popover').addEventListener('toggle', updateDraftButton);
@@ -615,7 +630,32 @@ $('review-lifecycle').addEventListener('click', () => {
   if (!state.endedAt) editingId = undefined;
   void action({ action: state.endedAt ? 'resume' : 'end' });
 });
-$('submit').addEventListener('click', () => action({ action: 'submit' }));
+function updateSubmit() {
+  $('submit').disabled =
+    Boolean(state.endedAt) || !(state.pendingCommentIds.length || $('agent-message').value.trim());
+}
+function submit(end = false) {
+  const message = $('agent-message').value.trim();
+  return action({ action: 'submit', ...(message ? { message } : {}), ...(end ? { end } : {}) });
+}
+$('submit').addEventListener('click', () => submit());
+$('send-end').addEventListener('click', () => {
+  if ($('comment').value)
+    return announce('Save or clear the unsaved draft before ending the review.', true);
+  void submit(true);
+});
+$('agent-message').addEventListener('input', updateSubmit);
+$('agent-message').addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  if (!$('submit').disabled) void submit();
+});
+$('comment').addEventListener('keydown', async (event) => {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  if ($('save').disabled || !(await saveComment())) return;
+  if ((event.metaKey || event.ctrlKey) && !$('submit').disabled) await submit();
+});
 $('refresh').addEventListener('click', () =>
   operation(async () => {
     acceptState(await api('refresh', {}));

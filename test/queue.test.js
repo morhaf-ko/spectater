@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
 import { mkdir, rename, rmdir } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
-import { promisify } from 'node:util';
-import { controlRequest } from '../src/control.js';
+import { cli } from '../scripts/cli-fixture.js';
+import { removeServer, writeServer } from '../src/agent.js';
 import { openReview } from '../src/review.js';
 import { startServer } from '../src/server.js';
 import { feedback } from '../src/storage.js';
@@ -41,8 +40,11 @@ async function setup(t) {
     get review() {
       return review;
     },
+    get server() {
+      return server;
+    },
     async serve() {
-      server = await startServer(review);
+      server = await startServer(review, { watch: false });
     },
     async restart() {
       if (server) {
@@ -69,9 +71,9 @@ test('default submission sends only new/changed comments and prevents duplicate 
   await s.mutate({ action: 'edit', id: first.id, body: 'Changed while queued.' });
   assert.equal(s.review.view().pendingCommentIds.length, 0);
   await assert.rejects(s.mutate({ action: 'submit' }), /new or changed/);
-  const batch = await s.review.claimBatch({ after: 0 });
+  const batch = await s.review.deliver();
   const claimedRevision = s.review.state.revision;
-  assert.deepEqual(await s.review.claimBatch({ after: 0 }), batch);
+  assert.deepEqual(await s.review.deliver(), batch);
   assert.equal(s.review.state.revision, claimedRevision);
   await s.comment('New comment.');
   await s.mutate({ action: 'submit' });
@@ -85,18 +87,13 @@ test('default submission sends only new/changed comments and prevents duplicate 
 
 test('queued edits pause delivery across restart and explicit updates preserve immutable history', async (t) => {
   const s = await setup(t);
-  await s.serve();
   await s.comment('Correct me.');
   await s.comment('Remove me.');
   await s.mutate({ action: 'submit' });
   const batch = s.review.state.batches[0],
     original = feedback(s.review.state, batch.id);
   await s.mutate({ action: 'edit-batch', id: batch.id });
-  assert.equal(
-    (await controlRequest(s.f.stateDir, s.review.state.reviewId, '/next?after=0&wait=0')).status,
-    'timeout',
-  );
-  await assert.rejects(s.review.claimBatch({ batchId: batch.id }), /being edited/);
+  assert.equal(await s.review.deliver(), null);
   await s.restart();
   assert.equal(s.review.view().queue[batch.id].status, 'editing');
   await s.mutate({ action: 'edit', id: batch.entries[0].id, body: 'Corrected.' });
@@ -110,7 +107,7 @@ test('queued edits pause delivery across restart and explicit updates preserve i
   );
   assert.equal(s.review.view().queue[batch.id].replacementId, replacement.id);
   assert.deepEqual(feedback(s.review.state, batch.id), original);
-  assert.equal((await s.review.claimBatch({ after: 0 })).id, replacement.id);
+  assert.equal((await s.review.deliver()).id, replacement.id);
   await s.mutate({ action: 'submit' });
   assert.deepEqual(
     s.review.state.batches[2].entries.map((entry) => entry.body),
@@ -124,13 +121,12 @@ test('cancellation and handoff serialize: exactly one can win and cancelled data
   await s.mutate({ action: 'submit' });
   const first = s.review.state.batches[0];
   const cancelled = s.mutate({ action: 'cancel-batch', id: first.id });
-  const lostClaim = s.review.claimBatch({ batchId: first.id });
+  const lostClaim = s.review.deliver();
   await cancelled;
-  await assert.rejects(lostClaim, /withdrawn/);
-  assert.equal(await s.review.claimBatch({ after: 0 }), null);
+  assert.equal(await lostClaim, null);
   await s.mutate({ action: 'submit' });
   const second = s.review.state.batches[1];
-  const claim = s.review.claimBatch({ batchId: second.id });
+  const claim = s.review.deliver();
   const lostCancel = s.mutate({ action: 'cancel-batch', id: second.id });
   assert.equal((await claim).id, second.id);
   await assert.rejects(lostCancel, /conflict/);
@@ -139,53 +135,40 @@ test('cancellation and handoff serialize: exactly one can win and cancelled data
   await s.restart();
   assert.equal(s.review.view().queue[first.id].status, 'cancelled');
   assert.equal(s.review.view().queue[second.id].status, 'claimed');
-  assert.equal((await s.review.claimBatch({ after: 0 })).id, second.id);
+  assert.equal((await s.review.deliver()).id, second.id);
 });
 
-test('CLI uses live claims, skips cancelled batches and requires explicit offline archive reads', async (t) => {
+test('CLI wait skips cancelled batches and feedback reads any batch without delivery', async (t) => {
   const s = await setup(t);
   await s.serve();
-  const env = {
-    ...process.env,
-    SPECTATER_STATE_DIR: s.f.stateDir,
-    SPECTATER_CONFIG: s.f.configFile,
-  };
-  const run = (args) =>
-    promisify(execFile)(process.execPath, ['bin/spectater.js', ...args], { env, timeout: 15000 });
+  const run = cli('bin/spectater.js', s.f);
+  await writeServer(s.f.stateDir, {
+    reviewId: s.review.state.reviewId,
+    pid: process.pid,
+    url: s.server.url,
+    change: 'example',
+    root: s.f.project,
+  });
   await s.comment('Withdrawn.');
   await s.mutate({ action: 'submit' });
-  const batch = s.review.state.batches[0],
-    id = s.review.state.reviewId;
+  const batch = s.review.state.batches[0];
   await s.mutate({ action: 'cancel-batch', id: batch.id });
-  await assert.rejects(run(['feedback', '--review', id, '--batch', batch.id]), /withdrawn/);
-  const archived = await run([
-    'feedback',
-    '--review',
-    id,
-    '--batch',
-    batch.id,
-    '--history',
-    '--format',
-    'json',
-  ]);
+  assert.equal(
+    JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).status,
+    'timeout',
+  );
+  const archived = await run(['feedback', 'example', '--batch', '1']);
   assert.equal(JSON.parse(archived.stdout).id, batch.id);
   assert.equal(s.review.view().activity[batch.id], undefined);
   await s.mutate({ action: 'submit' });
-  const pending = s.review.state.batches[1];
-  await s.stop();
-  await assert.rejects(
-    run(['feedback', '--review', id, '--batch', pending.id]),
-    /Reopen it for delivery/,
-  );
-  await assert.rejects(
-    run(['feedback', '--review', id, '--after', '0', '--wait', '0']),
-    /Reopen it before/,
-  );
   assert.equal(
-    (await run(['feedback', '--review', id, '--batch', batch.id, '--history', '--format', 'json']))
-      .stdout,
-    archived.stdout,
+    JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).batch.sequence,
+    2,
   );
+  const { reviewId } = s.review.state;
+  await s.stop();
+  await removeServer(s.f.stateDir, reviewId);
+  assert.equal((await run(['feedback', 'example', '--batch', '1'])).stdout, archived.stdout);
 });
 
 test('failed durable handoff does not falsely claim delivery or prevent cancellation', async (t) => {
@@ -199,7 +182,7 @@ test('failed durable handoff does not falsely claim delivery or prevent cancella
   await rename(file, backup);
   await mkdir(file);
   try {
-    await assert.rejects(s.review.claimBatch({ batchId: batch.id }));
+    await assert.rejects(s.review.deliver());
     assert.equal(JSON.stringify(s.review.state), before);
   } finally {
     await rmdir(file);

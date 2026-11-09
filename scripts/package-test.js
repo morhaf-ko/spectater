@@ -4,13 +4,21 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { listServers } from '../src/agent.js';
+import { alive } from '../src/storage.js';
 import { fixture } from '../test/helpers.js';
-import { launchFixture } from './cli-fixture.js';
 
 const exec = promisify(execFile);
 const temp = await realpath(await mkdtemp(path.join(os.tmpdir(), 'spectater-package-')));
 const f = await fixture();
-let cli;
+// Runs the installed CLI under Node, the published runtime.
+const run = (args) =>
+  exec('node', [bin, ...args], {
+    cwd: f.project,
+    env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile },
+    timeout: 60000,
+  });
+let bin;
 try {
   const tarball = path.join(temp, 'spectater.tgz');
   await exec('bun', ['pm', 'pack', '--filename', tarball, '--ignore-scripts', '--quiet']);
@@ -18,146 +26,87 @@ try {
   for (const file of listing)
     assert.match(
       file,
-      /^package\/(bin\/|src\/|web\/|docs\/|integration\/spectater\/SKILL\.md$|README\.md$|LICENSE$|SECURITY\.md$|package\.json$)/,
+      /^package\/(bin\/|src\/|web\/|skills\/spectater\/SKILL\.md$|README\.md$|LICENSE$|package\.json$)/,
     );
   const install = path.join(temp, 'install');
   await mkdir(install);
-  await writeFile(
-    path.join(install, 'package.json'),
-    JSON.stringify({ private: true, dependencies: { spectater: tarball } }),
-  );
-  await exec('bun', ['install', '--cwd', install, '--ignore-scripts'], {
-    timeout: 60000,
+  await writeFile(path.join(install, 'package.json'), '{"private":true}');
+  await exec('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], {
+    cwd: install,
+    timeout: 120000,
   });
-  const bin = path.join(temp, 'install', 'node_modules', 'spectater', 'bin', 'spectater.js');
-  assert.match((await exec(process.execPath, [bin, '--help'])).stdout, /spectater open/);
-  assert.match((await exec(process.execPath, [bin, 'workflow'])).stdout, /feedback --review/);
-  assert.match((await exec(process.execPath, [bin, 'skill'])).stdout, /name: spectater/);
-  cli = await launchFixture(bin, f);
-  assert.equal(new URL(cli.url).pathname, '/review/example');
-  let state = await cli.request('state');
+  bin = path.join(install, 'node_modules', 'spectater', 'bin', 'spectater.js');
+  const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+  assert.equal((await run(['--version'])).stdout.trim(), version);
+  assert.match((await run(['workflow'])).stdout, /spectater wait <change>/);
+  assert.match((await run(['skill'])).stdout, /^---\nname: spectater\n/);
+
+  const opened = JSON.parse((await run(['open', 'example', '--no-open'])).stdout);
+  assert.equal(opened.status, 'ready');
+  const url = new URL(opened.url);
+  assert.equal(url.pathname, '/review/example');
+  const request = async (endpoint, input) => {
+    const response = await fetch(`${url.origin}${url.pathname}/${endpoint}`, {
+      method: input ? 'POST' : 'GET',
+      headers: {
+        Authorization: `Bearer ${url.hash.slice(1)}`,
+        Origin: url.origin,
+        'Content-Type': 'application/json',
+      },
+      ...(input ? { body: JSON.stringify(input) } : {}),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+    return data;
+  };
+  let state = await request('state');
   const d = state.documents[0],
-    quote = 'exact',
-    start = d.source.indexOf(quote);
-  state = await cli.request('action', {
+    start = d.source.indexOf('exact');
+  state = await request('action', {
     action: 'comment',
     revision: state.revision,
     documentId: d.id,
     hash: d.hash,
     start,
-    end: start + quote.length,
+    end: start + 5,
     precision: 'exact',
-    quote,
+    quote: 'exact',
     body: 'Packaged feedback.',
   });
-  state = await cli.request('action', { action: 'submit', revision: state.revision });
-  const original = state.batches[0].id;
-  state = await cli.request('action', {
-    action: 'edit-batch',
-    id: original,
-    revision: state.revision,
-  });
-  assert.equal(state.queue[original].status, 'editing');
-  state = await cli.request('action', { action: 'submit', revision: state.revision });
-  assert.equal(state.queue[original].status, 'superseded');
-  const activeBatch = state.batches[1].id;
-  const args = [
-    bin,
-    'feedback',
-    '--review',
-    state.reviewId,
-    '--batch',
-    activeBatch,
-    '--format',
-    'json',
-  ];
-  const first = await exec(process.execPath, args, {
-    env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile },
-  });
-  assert.equal(JSON.parse(first.stdout).entries[0].body, 'Packaged feedback.');
-  assert.equal(
-    first.stdout,
-    (
-      await exec(process.execPath, args, {
-        env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile },
-      })
-    ).stdout,
-  );
-  assert.equal(await readFile(f.file, 'utf8'), d.source);
-  const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
-  const cursor = JSON.parse(
-    (
-      await exec(
-        process.execPath,
-        [
-          bin,
-          'feedback',
-          '--review',
-          state.reviewId,
-          '--after',
-          '0',
-          '--wait',
-          '0',
-          '--format',
-          'json',
-        ],
-        { env },
-      )
-    ).stdout,
-  );
-  assert.equal(cursor.status, 'batch');
-  assert.equal(cursor.sequence, 2);
-  await exec(
-    process.execPath,
-    [bin, 'reply', '--review', state.reviewId, '--batch', activeBatch, '--status', 'working'],
-    { env },
-  );
+  await request('action', { action: 'submit', revision: state.revision });
+  const waited = JSON.parse((await run(['wait', 'example'])).stdout);
+  assert.equal(waited.status, 'batch');
+  assert.equal(waited.batch.entries[0].body, 'Packaged feedback.');
+  await run(['reply', 'example', '--status', 'working']);
   const message = path.join(temp, 'reply.txt');
   await writeFile(message, 'Packaged agent reply.');
-  await exec(
-    process.execPath,
-    [bin, 'reply', '--review', state.reviewId, '--batch', activeBatch, '--message-file', message],
-    { env },
-  );
+  await run(['reply', 'example', '--message-file', message]);
   assert.equal(
-    (await cli.request('state')).activity[activeBatch].replies[0].body,
+    (await request('state')).activity[waited.batch.id].replies[0].body,
     'Packaged agent reply.',
   );
-  const reused = await exec(
-    process.execPath,
-    [bin, 'open', '--project', f.project, '--change', 'example', '--no-open'],
-    { env },
-  );
-  assert.match(reused.stdout, /Reused active review/);
   const revised = `Package revision.\n\n${d.source}`;
   await writeFile(f.file, revised);
-  const receipt = JSON.parse(
-    (await exec(process.execPath, [bin, 'refresh', '--review', state.reviewId], { env })).stdout,
+  assert.equal(JSON.parse((await run(['refresh', 'example'])).stdout).status, 'refreshed');
+  assert.equal((await request('state')).documents[0].source, revised);
+  assert.equal(JSON.parse((await run(['end', 'example'])).stdout).status, 'ended');
+  const [{ pid }] = await listServers(f.stateDir);
+  await run(['stop', 'example']);
+  while (alive(pid)) await new Promise((resolve) => setTimeout(resolve, 50));
+  await assert.rejects(run(['open', 'example', '--no-open']), /Use --reopen/);
+  assert.equal(
+    JSON.parse((await run(['open', 'example', '--no-open', '--reopen'])).stdout).status,
+    'ready',
   );
-  assert.equal(receipt.status, 'refreshed');
-  assert.equal((await cli.request('state')).documents[0].source, revised);
-  const ended = JSON.parse(
-    (await exec(process.execPath, [bin, 'end', '--review', state.reviewId], { env })).stdout,
+  assert.equal(
+    (await run(['feedback', 'example', '--batch', '1'])).stdout.includes('Packaged'),
+    true,
   );
-  assert.equal(ended.status, 'ended');
-  await cli.close();
-  cli = null;
-  await assert.rejects(
-    exec(
-      process.execPath,
-      [bin, 'open', '--project', f.project, '--change', 'example', '--no-open'],
-      { env },
-    ),
-    /Use --reopen/,
-  );
-  cli = await launchFixture(bin, f, { reopen: true });
-  assert.equal((await cli.request('state')).endedAt, undefined);
-  assert.equal((await cli.request('state')).batches.length, 2);
   console.log(
-    `Package passed: ${listing.length} allowlisted files, temporary Bun install, installed skill/workflow/open/wait/retrieval/queue replacement/reply/reuse/refresh/end/reopen; source changes limited to the explicit fixture revision.`,
+    `Package passed: ${listing.length} allowlisted files installed with npm and run under Node: open, wait, reply, refresh, end, stop, reopen and feedback.`,
   );
 } finally {
-  await cli?.close();
+  if (bin) await run(['stop', 'example']).catch(() => {});
   await f.cleanup();
   await rm(temp, { recursive: true, force: true });
 }
