@@ -136,10 +136,13 @@ export async function startServer(review, options = {}) {
       await review.mutate({ action: 'resume', revision: review.state.revision });
       return { status: 'resumed' };
     },
-    reply: async (input) => ({
-      status: 'recorded',
-      ...(await review.recordActivity(input.batch, input)),
-    }),
+    // Sandboxed agents (e.g. Codex on macOS) can leave file watching unavailable, so the reply
+    // re-reads the change first; the reviewer then sees the edits with the reply. A failed or
+    // ended-review refresh keeps the last valid source and is reported through watch status.
+    reply: async (input) => {
+      if (!review.state.endedAt) await refresh().catch(() => {});
+      return { status: 'recorded', ...(await review.recordActivity(input.batch, input)) };
+    },
     stop: () => {
       setImmediate(onStop);
       return { status: 'stopping' };

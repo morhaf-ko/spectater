@@ -61,6 +61,7 @@ Other commands report `ready` or `reused` (`open`), `recorded` (`reply`), `refre
 - **Send & End** submits and ends the review once the agent has received the final batch.
 - Comments on text that later changes are marked stale (with a suggested re-anchor) or orphaned; nothing is silently moved.
 - "What changed" diffs the latest source update against the previous one.
+- Edits appear as the agent saves them. When an agent's sandbox blocks file watching (Codex on macOS, for example), they appear when the agent replies.
 
 ## Commands
 
