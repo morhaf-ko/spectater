@@ -170,6 +170,34 @@ test('corrupt state is preserved and persistence errors do not acknowledge chang
   await assert.rejects(loadState(f2.stateDir, r2.reviewId), /private/);
 });
 
+test('comment edits and recoverable deletion survive restart without changing submitted batches', async t => {
+  const f = await fixture(); let review;
+  t.after(async () => { await review?.close(); await f.cleanup(); });
+  review = await openReview(f.options, { directory: f.stateDir });
+  const d = review.view().documents[0], start = d.source.indexOf('exact');
+  const mutate = input => review.mutate({ ...input, revision: review.view().revision });
+  await mutate({ action: 'comment', documentId: d.id, hash: d.hash, start, end: start + 5, quote: 'exact', precision: 'exact', body: 'Original feedback.' });
+  const id = review.view().comments[0].id;
+  await mutate({ action: 'submit' });
+  const batchId = review.state.batches[0].id;
+  const original = feedbackMarkdown(feedback(review.state, batchId));
+  await assert.rejects(mutate({ action: 'edit', id, body: '' }), /1–10,000/);
+  await mutate({ action: 'edit', id, body: 'Updated feedback.' });
+  assert.equal(review.view().comments[0].hash, d.hash);
+  await mutate({ action: 'delete', id });
+  assert.equal(review.view().comments.length, 0); assert.equal(review.view().deletedComments.length, 1);
+  await assert.rejects(mutate({ action: 'submit' }), /Add an open/);
+  await assert.rejects(mutate({ action: 'edit', id, body: 'No' }), /Restore/);
+  assert.equal(feedbackMarkdown(feedback(review.state, batchId)), original);
+  await review.close(); review = null;
+  review = await openReview(f.options, { directory: f.stateDir });
+  assert.equal(review.view().deletedComments[0].body, 'Updated feedback.');
+  await mutate({ action: 'restore', id });
+  assert.equal(review.view().comments[0].body, 'Updated feedback.');
+  assert.equal(feedbackMarkdown(feedback(review.state, batchId)), original);
+  assert.equal(await readFile(f.file, 'utf8'), d.source);
+});
+
 test('local HTTP boundary rejects unauthorized, foreign, oversized and arbitrary-path requests', async t => {
   const f = await fixture();
   const r = await openReview(f.options, { directory: f.stateDir });

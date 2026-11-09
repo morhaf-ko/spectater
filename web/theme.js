@@ -7,16 +7,26 @@
   const apply = () => {
     root.dataset.themePreference = preference;
     root.dataset.theme = preference === 'system' ? (media.matches ? 'dark' : 'light') : preference;
+    const control = document.getElementById('theme');
+    if (control) {
+      control.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));
+      control.title = `Switch to ${root.dataset.theme === 'dark' ? 'light' : 'dark'} mode${preference === 'system' ? ' (currently follows system)' : ''}`;
+      document.getElementById('theme-system').hidden = preference === 'system';
+    }
   };
   apply();
   media.addEventListener('change', apply);
   document.addEventListener('DOMContentLoaded', () => {
     const control = document.getElementById('theme');
-    control.value = preference;
-    control.addEventListener('change', () => {
-      preference = control.value;
+    apply();
+    control.addEventListener('click', () => {
+      preference = root.dataset.theme === 'dark' ? 'light' : 'dark';
       apply();
       try { localStorage.setItem('spectater-theme', preference); } catch { /* The selection still lasts for this page. */ }
+    });
+    document.getElementById('theme-system').addEventListener('click', () => {
+      preference = 'system'; apply();
+      try { localStorage.removeItem('spectater-theme'); } catch { /* System mode still works for this page. */ }
     });
   });
 })();

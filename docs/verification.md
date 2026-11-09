@@ -6,7 +6,7 @@ Local macOS, Bun 1.4.4, Node 24.22.2 for the external OpenSpec CLI, OpenSpec 1.1
 
 ## Acceptance interfaces
 
-Local acceptance passed: 13 contract tests, six browser tests, a 16-file package allowlist with temporary offline install, CLI smoke, frozen install, dependency audit, Renovate validation and strict OpenSpec validation. No checks were waived.
+Local acceptance passed: 14 contract tests, seven browser tests, a 16-file package allowlist with temporary offline install, CLI smoke, frozen install, dependency audit, Renovate validation and strict OpenSpec validation. No checks were waived.
 
 | Command | Evidence |
 | --- | --- |
@@ -62,3 +62,13 @@ Prioritized future performance experiments:
 3. Evaluate lazy artifact parsing or one local parser bundle if larger-change profiling shows import/parsing cost. Current state views are already below one millisecond in this sample.
 
 Revision hashes, filesystem boundaries, one-writer checks, fsync and atomic state persistence remain required. Compression, native binaries, background daemons and extra caches are not justified by the current local measurements.
+
+## Selection composition and comment management
+
+The operator requested a sun/moon button, selection-based composer, editable/deletable sidebar comments, a humorous logo and native Apple typography. Seven browser tests pass, including a focused, viewport-clamped native popover in both themes at 1440×900 and 390×844, Escape dismissal, reloadable tab drafts, edit/delete/undo/restore and unchanged submitted batches. Fourteen contract tests pass; deletion and restoration survive restart, and editing/deletion never changes a submitted batch. Package installation, smoke and strict OpenSpec checks also passed. No dependency, downloaded font, image request or polling loop was added.
+
+The mechanical detector reports flat type hierarchy for the static shell's 12/14/16px metadata/control headings. Screenshot inspection distinguishes that shell from the dynamically rendered document's 28/24/18px headings. The warning is recorded rather than treated as a functional failure or a claim of operator aesthetic acceptance. Light/dark desktop/mobile popover captures were visually inspected. Actual mobile-device and assistive-technology evidence remain unclaimed.
+
+Draft session storage is a recovery convenience for the same tab and origin. Saved comments and immutable batches remain authoritative in private disk state. Changed source invalidates a cached selection while retaining draft text. Recoverable comment deletion retains the record and its snapshots; physical review-state deletion/export migration remains an explicit separate action.
+
+The Lavish comparison and proposed on-demand skill/wait/refresh loop are in docs/workflow.md. Those integration commands are unimplemented and no skill/hook/plugin was installed. Current Submit creates a durable receipt; it does not wake a stopped agent or automatically refresh after plan changes.

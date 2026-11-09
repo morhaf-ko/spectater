@@ -22,7 +22,7 @@ No registry release is published by these instructions. Automatic browser openin
 ## Review loop
 
 1. Read the selected change's native artifact list and rendered or exact source view.
-2. Select text and save a comment. Rendered selections show exact or enclosing-span precision; use Source for selections across spans or blocks.
+2. Select text, type in the popover and save a comment. Rendered selections show exact or enclosing-span precision; use Source for selections across spans or blocks.
 3. Submit a batch. Copy its retrieval command into the existing conversation, or copy/download its Markdown export.
 4. Have the existing agent read the explicit batch and revise Markdown within its existing authorization.
 5. Refresh source. Old comments become stale or orphaned; reattachment is explicit and preserves original anchors. Submitted batches remain unchanged.
@@ -35,9 +35,9 @@ Submission does not send feedback to an agent, resolve comments or approve imple
 
 ## Appearance
 
-The reader follows the Clean design system. Theme starts at **System** and follows your OS preference; choose **Light** or **Dark** in the header to override it. The choice survives reloads for that local origin. A new server port starts with System. No theme setup or dependencies are needed.
+The reader follows the Clean design system. The sun/moon button starts by following your OS preference. Click it to switch light/dark; **Use system theme** under **Details** restores automatic appearance. The choice survives reloads for that local origin. A new server port starts with System. No theme setup or dependencies are needed.
 
-Artifact metadata is under **Details**. Batch export appears after submission or opening a saved batch. Select document text, save a comment, then submit the batch to test the complete loop.
+Artifact metadata is under **Details**. Select text to open a focused comment popover; saved comments appear in the sidebar, where you can edit, resolve or delete them. Deletion has Undo and a restore list. Submitted batches remain immutable. Drafts can resume after a reload in the same tab when browser storage is available; save comments for durable storage. Batch export appears after submission or opening a saved batch. The interface uses the native Apple system font stack and a local vector potato logo, with no font downloads.
 
 ## Configuration
 

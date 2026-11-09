@@ -8,6 +8,17 @@ import { openReview } from '../../src/review.js';
 import { startServer } from '../../src/server.js';
 import { launchFixture } from '../../scripts/cli-fixture.js';
 
+async function setTheme(page, value) {
+  if (value === 'system') {
+    if (await page.locator('html').getAttribute('data-theme-preference') !== 'system') {
+      if (!await page.locator('.review-details').evaluate(el => el.open)) await page.locator('.review-details > summary').click();
+      await page.getByRole('button', { name: 'Use system theme', exact: true }).click();
+    }
+  } else if (await page.locator('html').getAttribute('data-theme') !== value) {
+    await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
+  }
+}
+
 async function selectSource(page, text) {
   await page.getByRole('button', { name: 'Source', exact: true }).click();
   await page.locator('#source').evaluate((el, quote) => {
@@ -114,14 +125,14 @@ test('document reader desktop/mobile states and configured source default', asyn
   try {
     const review = await openReview({ ...f.options, defaultView: 'source' }, { directory: f.stateDir }); server = await startServer(review);
     await page.goto(server.url); await expect(page.locator('#source')).toBeVisible();
-    await page.getByLabel('Theme', { exact: true }).selectOption('light');
+    await setTheme(page, 'light');
     const dir = '.tmp/explore-spectater/screenshots'; await mkdir(dir, { recursive: true });
     await expect(page.locator('#source-lines')).toContainText('1\n2\n3');
     await page.screenshot({ path: `${dir}/desktop-source.png` });
     await page.getByRole('button', { name: 'Rendered', exact: true }).click();
     await expect(page.locator('#rendered h1')).toHaveText('Proposal');
     for (const theme of ['light', 'dark']) {
-      await page.getByLabel('Theme', { exact: true }).selectOption(theme);
+      await setTheme(page, theme);
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await page.screenshot({ path: `${dir}/desktop-${theme}.png`, fullPage: true });
     }
@@ -130,7 +141,7 @@ test('document reader desktop/mobile states and configured source default', asyn
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     expect(await page.locator('header').count()).toBe(1);
     for (const theme of ['light', 'dark']) {
-      await page.getByLabel('Theme', { exact: true }).selectOption(theme);
+      await setTheme(page, theme);
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await page.screenshot({ path: `${dir}/mobile-${theme}.png` });
     }
@@ -150,23 +161,24 @@ test('system theme follows OS changes; manual choices persist without losing a d
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto(server.url);
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('system');
+    await expect(page.locator('html')).toHaveAttribute('data-theme-preference', 'system');
     await page.emulateMedia({ colorScheme: 'light' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await selectSource(page, 'exact sentence');
     await page.locator('#comment').fill('Draft survives theme changes.');
-    await page.getByLabel('Theme', { exact: true }).selectOption('dark');
+    await setTheme(page, 'dark');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect(page.locator('#comment')).toHaveValue('Draft survives theme changes.');
     await expect(page.locator('#save')).toBeEnabled();
+    if (!await page.locator('#comment-popover').isVisible()) await page.getByRole('button', { name: 'Resume draft' }).click();
     await page.locator('#save').click(); await expect(page.locator('#comments')).toContainText('Draft survives theme changes.');
     await page.reload();
-    await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('dark');
+    await expect(page.locator('html')).toHaveAttribute('data-theme-preference', 'dark');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await page.getByLabel('Theme', { exact: true }).selectOption('light');
+    await setTheme(page, 'light');
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await page.getByLabel('Theme', { exact: true }).selectOption('system');
+    await setTheme(page, 'system');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await page.emulateMedia({ colorScheme: 'light' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
@@ -182,7 +194,7 @@ test('theme still works when browser preference storage is unavailable', async (
     await page.goto(server.url);
     await expect(page.locator('#message')).toContainText('Ready.');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await page.getByLabel('Theme', { exact: true }).selectOption('light');
+    await setTheme(page, 'light');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   } finally { await server?.close(); await f.cleanup(); }
 });
@@ -211,4 +223,60 @@ test('CLI config and no-open defaults survive a forced macOS opener failure', as
     await page.goto(cli.url); await expect(page.locator('#message')).toContainText('Ready.');
     expect(cli.errors).toBe('');
   } finally { await cli?.close(); await f.cleanup(); }
+});
+
+
+test('selection popover supports immediate typing, cached drafts, editing, deletion and undo', async ({ page }) => {
+  const f = await fixture(); let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(server.url); await expect(page.locator('#message')).toContainText('Ready.');
+    const dir = '.tmp/explore-spectater/screenshots'; await mkdir(dir, { recursive: true });
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+      for (const theme of ['light', 'dark']) {
+        await setTheme(page, theme);
+        await selectSource(page, 'exact sentence');
+        await expect(page.locator('#comment')).toBeFocused();
+        await page.screenshot({ path: `${dir}/popover-${width}-${theme}.png` });
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#comment-popover')).not.toBeVisible();
+      }
+    }
+    await selectSource(page, 'exact sentence');
+    await expect(page.getByRole('dialog', { name: 'Add comment' })).toBeVisible();
+    await expect(page.locator('#comment')).toBeFocused();
+    const box = await page.locator('#comment-popover').boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(390);
+    expect(box.y).toBeGreaterThanOrEqual(0); expect(box.y + box.height).toBeLessThanOrEqual(844);
+    await page.keyboard.type('Popover feedback.');
+    await page.reload(); await expect(page.locator('#message')).toContainText('Ready.');
+    await page.getByRole('button', { name: 'Resume draft' }).click();
+    await expect(page.locator('#comment')).toHaveValue('Popover feedback.');
+    await page.locator('#save').click();
+    await expect(page.locator('#comment-popover')).not.toBeVisible();
+    await expect(page.locator('#comments')).toContainText('Popover feedback.');
+    await page.locator('#submit').click(); await expect(page.locator('#message')).toContainText('Batch saved.');
+    const exported = await page.locator('#export').inputValue();
+    await page.locator('#comments').getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Edit comment' })).toBeVisible();
+    await page.locator('#comment').fill('Edited feedback.');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Resume draft' }).click();
+    await expect(page.locator('#comment')).toHaveValue('Edited feedback.');
+    await page.locator('#save').click(); await expect(page.locator('#comments')).toContainText('Edited feedback.');
+    await page.locator('#comments').getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.locator('#comments .comment')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.locator('#comments')).toContainText('Edited feedback.');
+    await page.locator('#comments').getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.reload(); await expect(page.locator('#message')).toContainText('Ready.');
+    await page.locator('#deleted-comments > summary').click();
+    await page.getByRole('button', { name: 'Restore', exact: true }).click();
+    await expect(page.locator('#comments')).toContainText('Edited feedback.');
+    await page.getByRole('button', { name: 'Batch 1 · 1 comments' }).click();
+    await expect(page.locator('#export')).toHaveValue(exported);
+    expect(await readFile(f.file, 'utf8')).toBe(sample);
+  } finally { await server?.close(); await f.cleanup(); }
 });

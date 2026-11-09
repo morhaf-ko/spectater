@@ -6,6 +6,21 @@ Preserve selected-text feedback with the exact reviewed source revision so an ex
 
 ## ADDED Requirements
 
+### Requirement: Contextual comment composition and management
+The system SHALL open a focused, non-modal comment composer near a valid text selection and show saved feedback separately. It MUST preserve unsaved text on dismissal and support editing, resolving and recoverably deleting saved comments. These operations MUST NOT alter prior submitted batches.
+
+#### Scenario: Selection composer
+- **WHEN** the operator selects supported text
+- **THEN** the composer appears within the viewport with input focus, source precision and explicit save/dismiss actions
+
+#### Scenario: Edit or delete submitted feedback
+- **WHEN** the operator edits or deletes a saved comment after submitting it
+- **THEN** the saved-comment list reflects the operation, deletion can be undone, and the submitted batch stays unchanged
+
+#### Scenario: Draft reload
+- **WHEN** optional tab storage is available and the operator reloads with an unsaved draft
+- **THEN** its text is recoverable in that tab and a changed source revision requires a new selection before saving
+
 ### Requirement: Revision-bound selection
 The system SHALL bind each comment to a document path, original-byte hash, immutable source snapshot, selected source span and comment body. It MUST distinguish exact selection from enclosing-span precision and offer source selection when rendered mapping is ambiguous.
 

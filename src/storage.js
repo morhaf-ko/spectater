@@ -28,6 +28,7 @@ function validate(state, id) {
   }
   for (const c of [...state.comments, ...state.batches.flatMap(b => Array.isArray(b.entries) ? b.entries : [null])]) {
     const snapshot = c && state.snapshots[c.hash];
+    if (c?.deletedAt !== undefined && (typeof c.deletedAt !== 'string' || !Number.isFinite(Date.parse(c.deletedAt)))) throw new Error('Corrupt comment deletion metadata.');
     if (!snapshot || typeof c.id !== 'string' || typeof c.body !== 'string' || typeof c.documentId !== 'string' || typeof c.path !== 'string' || !Number.isInteger(c.start) || !Number.isInteger(c.end) || c.start < 0 || c.end <= c.start || c.end > snapshot.source.length || snapshot.source.slice(c.start, c.end) !== c.slice || !['exact', 'enclosing'].includes(c.precision) || !['open', 'resolved'].includes(c.state)) throw new Error('Corrupt review comment. Restore a valid copy.');
   }
   state.batches.forEach((b, i) => {

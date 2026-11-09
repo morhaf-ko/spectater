@@ -30,7 +30,8 @@ export async function openReview(options, dependencies = {}) {
     return { reviewId: review.reviewId, root: review.root, changeRoot: review.changeRoot, change: review.change, defaultView: options.defaultView || 'rendered',
       source: review.source, schemaName: review.schemaName, artifacts: review.artifacts, revision: state.revision,
       documents: review.documents.map(({ file, canonical, ...d }) => ({ ...d, ...current.get(d.id), html: rendered.get(current.get(d.id)?.hash) })),
-      comments: state.comments.map(c => ({ ...c, ...locate(c, current.get(c.documentId)) })),
+      comments: state.comments.filter(c => !c.deletedAt).map(c => ({ ...c, ...locate(c, current.get(c.documentId)) })),
+      deletedComments: state.comments.filter(c => c.deletedAt).map(c => ({ ...c, ...locate(c, current.get(c.documentId)) })),
       batches: state.batches.map(({ entries, ...batch }) => ({ ...batch, count: entries.length })),
       snapshots: Object.fromEntries(state.comments.map(c => [c.hash, state.snapshots[c.hash]])) };
   }
@@ -56,14 +57,20 @@ export async function openReview(options, dependencies = {}) {
         state.comments.push({ id: randomUUID(), documentId: input.documentId, path: snapshot.path, hash: snapshot.hash,
           ...anchor(snapshot, input), body: input.body.trim(), createdAt: new Date().toISOString(), state: 'open' });
       } else if (input.action === 'submit') {
-        const entries = state.comments.filter(c => c.state === 'open').map(c => ({ ...c,
+        const entries = state.comments.filter(c => c.state === 'open' && !c.deletedAt).map(c => ({ ...c,
           line: state.snapshots[c.hash].source.slice(0, c.start).split('\n').length }));
         if (!entries.length) throw new Error('Add an open comment before submitting.');
         state.batches.push({ id: randomUUID(), sequence: state.batches.length + 1, submittedAt: new Date().toISOString(), entries });
-      } else if (input.action === 'resolve' || input.action === 'reattach') {
+      } else if (['resolve', 'reattach', 'edit', 'delete', 'restore'].includes(input.action)) {
         const comment = state.comments.find(c => c.id === input.id);
         if (!comment) throw new Error('Unknown comment.');
-        if (input.action === 'resolve') comment.state = comment.state === 'open' ? 'resolved' : 'open';
+        if (input.action === 'restore') delete comment.deletedAt;
+        else if (comment.deletedAt) throw new Error('Comment is deleted. Restore it before editing.');
+        else if (input.action === 'delete') comment.deletedAt = new Date().toISOString();
+        else if (input.action === 'edit') {
+          if (typeof input.body !== 'string' || !input.body.trim() || input.body.length > 10000) throw new Error('Comment must contain 1–10,000 characters.');
+          comment.body = input.body.trim(); comment.updatedAt = new Date().toISOString();
+        } else if (input.action === 'resolve') comment.state = comment.state === 'open' ? 'resolved' : 'open';
         else {
           const snapshot = current.get(comment.documentId);
           const result = locate(comment, snapshot);
