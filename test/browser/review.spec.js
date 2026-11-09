@@ -328,7 +328,10 @@ test('rendered precision, source fallback, Unicode/CRLF, inert Markdown and clip
 
 test('document reader desktop/mobile states and configured source default', async ({ page }) => {
   const source = await readFile(
-    new URL('../../openspec/changes/local-change-review/proposal.md', import.meta.url),
+    new URL(
+      '../../openspec/changes/archive/2026-11-09-local-change-review/proposal.md',
+      import.meta.url,
+    ),
     'utf8',
   );
   const f = await fixture(source);

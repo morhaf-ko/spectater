@@ -16,7 +16,7 @@ An operator reviews an OpenSpec proposal drafted in an existing coding conversat
 
 ## Capabilities and constraints
 
-Canonical Markdown remains authoritative. Private local review state retains original revisions and stale/orphaned comments. No accounts, embedded models, source editing, agent control or approval inference. Implementation follows openspec/changes/local-change-review.
+Canonical Markdown remains authoritative. Private local review state retains original revisions and stale/orphaned comments. No accounts, embedded models, source editing, agent control or approval inference. Implementation follows openspec/specs.
 
 ## Confirmed interface
 

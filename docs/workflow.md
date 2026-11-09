@@ -1,6 +1,6 @@
 # Review with the existing conversation
 
-Requirements and planning live in openspec/changes/local-change-review. This guide describes current commands. From a checkout, replace `spectater` with `bun run /path/to/spectater/bin/spectater.js`.
+Requirements and planning live in openspec/specs. This guide describes current commands. From a checkout, replace `spectater` with `bun run /path/to/spectater/bin/spectater.js`.
 
 ## Open and listen
 

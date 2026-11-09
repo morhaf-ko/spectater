@@ -58,4 +58,4 @@ This runs Biome formatting/import/lint checks, contract/browser/package tests, t
 
 The public CI workflow pins its actions and uses repository runner variables configured for isolated GitHub-hosted runners. The same-repository condition limits automatic execution; it is not a runner security boundary. Renovate is the sole update producer; automatic merges remain disabled pending reporting and required checks.
 
-Requirements/design/tasks live in [the OpenSpec change](openspec/changes/local-change-review/); [DESIGN.md](DESIGN.md) contains reusable visual tokens. The change remains unarchived pending acceptance. MIT license; see LICENSE.
+Requirements/design/tasks live in [the OpenSpec specs](openspec/specs/); [DESIGN.md](DESIGN.md) contains reusable visual tokens. MIT license; see LICENSE.
