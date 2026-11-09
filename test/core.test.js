@@ -70,6 +70,14 @@ test('discovery fails closed for missing CLI/change, unsupported version/JSON an
   );
   assert.deepEqual(await listChanges({ project: f.project }), ['example']);
   await assert.rejects(
+    listChanges(f.options, async (args) =>
+      args[0] === '--version'
+        ? '1.15.0'
+        : JSON.stringify({ root: { path: f.project, source: 'global_default' } }),
+    ),
+    /Global default/,
+  );
+  await assert.rejects(
     discover(f.options, async (args) =>
       args[0] === '--version'
         ? '1.15.0'

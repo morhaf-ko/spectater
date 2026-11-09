@@ -33,10 +33,10 @@ To have agents open a review whenever they finish drafting a change, add this to
 
 ```yaml
 context: |
-  When you finish drafting or revising a change's artifacts, open the change for review with `npx -y spectater open <change>` and follow `npx -y spectater workflow`. No browser is needed: spectater prints a review URL for the user.
+  After you draft or revise a change's proposal, design, specs or tasks while planning (not while applying or archiving), open it for review with `npx -y spectater open <change>` and follow `npx -y spectater workflow`. No browser is needed: spectater prints a review URL for the user.
 ```
 
-If your project doesn't use OpenSpec's workflows, put the same sentence in `AGENTS.md` or `CLAUDE.md` instead.
+If your project doesn't use OpenSpec's workflows, put the same sentence in `AGENTS.md` or `CLAUDE.md` instead. `npx -y spectater` always runs the latest release; to pin a version for everyone who shares the config, install it (`npm install -g spectater@<version>`) and write `spectater` instead.
 
 ## How it works
 
@@ -76,19 +76,19 @@ Other commands report `ready` or `reused` (`open`), `recorded` (`reply`), `refre
 
 ## Commands
 
-| Command                                   | Description                                                                                                       |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `spectater`                               | List open reviews and usage.                                                                                      |
-| `spectater open <change>`                 | Start or reuse the review server and open the browser. `--no-open`, `--reopen`.                                   |
-| `spectater wait <change>`                 | Wait for feedback. `--timeout <seconds>`, `--takeover`, `--format markdown`.                                      |
-| `spectater reply <change>`                | `--status working`, or post a result with `--message` / `--message-file`. `--batch <n>` targets an earlier batch. |
-| `spectater feedback <change> --batch <n>` | Print a submitted batch without recording delivery.                                                               |
-| `spectater refresh <change>`              | Re-read the change from disk.                                                                                     |
-| `spectater end <change>`                  | End the review.                                                                                                   |
-| `spectater stop <change>`                 | Stop the server. Saved feedback is kept.                                                                          |
-| `spectater workflow`                      | Print the agent review loop.                                                                                      |
-| `spectater skill`                         | Print the agent skill.                                                                                            |
-| `spectater setup hooks`                   | Add SessionStart hooks (see below). `--remove` undoes it.                                                         |
+| Command                                   | Description                                                                                                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spectater`                               | List open reviews and usage.                                                                                                                |
+| `spectater open [change]`                 | Start or reuse the review server and open the browser; the change may be omitted when the project has exactly one. `--no-open`, `--reopen`. |
+| `spectater wait <change>`                 | Wait for feedback. `--timeout <seconds>`, `--takeover`, `--format markdown`.                                                                |
+| `spectater reply <change>`                | `--status working`, or post a result with `--message` / `--message-file`. `--batch <n>` targets an earlier batch.                           |
+| `spectater feedback <change> --batch <n>` | Print a submitted batch without recording delivery.                                                                                         |
+| `spectater refresh <change>`              | Re-read the change from disk.                                                                                                               |
+| `spectater end <change>`                  | End the review.                                                                                                                             |
+| `spectater stop <change>`                 | Stop the server. Saved feedback is kept.                                                                                                    |
+| `spectater workflow`                      | Print the agent review loop.                                                                                                                |
+| `spectater skill`                         | Print the agent skill.                                                                                                                      |
+| `spectater setup hooks`                   | Add SessionStart hooks (see below). `--remove` undoes it.                                                                                   |
 
 Run commands from the project directory, or pass `--project <dir>`. Use `--store <id>` for an OpenSpec store.
 

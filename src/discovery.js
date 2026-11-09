@@ -42,7 +42,7 @@ function diagnostic(error) {
     );
   try {
     const messages = JSON.parse(error.stdout)
-      .status.filter((item) => item.severity === 'error')
+      .status.filter((item) => item?.severity === 'error' && typeof item.message === 'string')
       .map((item) => item.message);
     if (messages.length) return Object.assign(new Error(messages.join(' ')), { diagnostic: true });
   } catch {
@@ -68,7 +68,16 @@ async function session({ project, store }, run) {
       throw new Error(`OpenSpec JSON/discovery error: ${error.message}`);
     }
   };
-  return { cwd, json };
+  // Every caller gets the same root selection rules, including the global-default refusal.
+  const context = await json(['context']);
+  if (
+    !context.root?.path ||
+    !['nearest', 'declared', 'store', 'global_default'].includes(context.root.source)
+  )
+    throw new Error('Unsupported OpenSpec root contract.');
+  if (context.root.source === 'global_default' && !store)
+    throw new Error('Global default refused. Select an explicit --store id.');
+  return { json, context };
 }
 
 const changeNames = (list) =>
@@ -99,15 +108,7 @@ export function createDiscovery() {
 export async function discover({ project, change, store }, run = native) {
   if (!project || !change || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(change))
     throw new Error('Supply a valid change name.');
-  const { json } = await session({ project, store }, run);
-  const context = await json(['context']);
-  if (
-    !context.root?.path ||
-    !['nearest', 'declared', 'store', 'global_default'].includes(context.root.source)
-  )
-    throw new Error('Unsupported OpenSpec root contract.');
-  if (context.root.source === 'global_default' && !store)
-    throw new Error('Global default refused. Select an explicit --store id.');
+  const { json, context } = await session({ project, store }, run);
   const root = await realpath(context.root.path);
   const list = await json(['list']);
   if (!changeNames(list).includes(change))
