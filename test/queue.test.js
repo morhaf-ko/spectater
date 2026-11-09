@@ -115,7 +115,7 @@ test('queued edits pause delivery across restart and explicit updates preserve i
   );
 });
 
-test('cancellation and handoff serialize: exactly one can win and cancelled data never reaches cursor delivery', async (t) => {
+test('cancellation and handoff serialize: exactly one can win and cancelled data never reaches server delivery', async (t) => {
   const s = await setup(t);
   await s.comment('Cancel first.');
   await s.mutate({ action: 'submit' });
