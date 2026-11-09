@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.2.1...spectater-v0.3.0) (2026-11-09)
+
+
+### Features
+
+* actionable first-run errors and implicit change selection ([#11](https://github.com/morhaf-ko/spectater/issues/11)) ([766c981](https://github.com/morhaf-ko/spectater/commit/766c981669b4a4f5674074c0f0368f1f3fc6e58d))
+
 ## [0.2.1](https://github.com/morhaf-ko/spectater/compare/spectater-v0.2.0...spectater-v0.2.1) (2026-11-09)
 
 
