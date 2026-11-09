@@ -181,6 +181,8 @@ test('CLI runs the full loop against a detached server addressed by change name'
     0o600,
   );
   assert.equal(JSON.parse((await run(['open', 'example', '--no-open'])).stdout).status, 'reused');
+  const implicit = JSON.parse((await run(['open', '--no-open'])).stdout);
+  assert.deepEqual([implicit.status, implicit.change], ['reused', 'example']);
   assert.match((await run([])).stdout, /- example .*spectater wait example/);
   const nested = path.join(f.project, 'openspec', 'changes', 'example');
   assert.equal(

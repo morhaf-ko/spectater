@@ -21,7 +21,8 @@ const usage = `SpecTater ${version}: review OpenSpec changes in the browser and 
 
 Usage: spectater <command> [change] [options]
 
-  open <change>       Start or reuse the review server and open the browser.
+  open [change]       Start or reuse the review server and open the browser. The change
+                      may be omitted when the project has exactly one.
   wait <change>       Block until feedback arrives; prints one JSON result.
   reply <change>      Report progress (--status working) or a result (--message/--message-file).
   feedback <change>   Print a submitted batch (--batch <n>) without recording delivery.
@@ -44,8 +45,8 @@ const workflow = `Review loop:
 
 1. Write or revise the OpenSpec change and run \`openspec validate <change>\`.
 2. spectater open <change>
-   Starts the review server in the background and opens the browser. Share the printed URL
-   only with the reviewer.
+   Starts the review server in the background and opens the browser when one is available.
+   No browser is needed: give the user the printed URL, and only to them.
 3. spectater wait <change>
    Blocks until the reviewer submits feedback. Prints one JSON object; act on "status":
    - batch:            feedback is in "batch". Continue with step 4.
@@ -371,12 +372,20 @@ try {
     if (!Object.hasOwn(commands, command))
       throw new Error(`Unknown command: ${command}. Use --help.`);
     if (extra.length) throw new Error('Too many arguments. Use --help.');
-    if (needsChange.has(command) && !argument)
-      throw new Error(`Usage: spectater ${command} <change>`);
     json = needsChange.has(command) && command !== 'serve' && values.format === 'json';
     if (!['json', 'markdown'].includes(values.format))
       throw new Error('--format must be json or markdown.');
-    await commands[command](values, argument);
+    let change = argument;
+    if (command === 'open' && !change) {
+      // With exactly one active change there is nothing to choose.
+      const { listChanges, missingChange } = await import('../src/discovery.js');
+      const names = await listChanges({ project: values.project || '.', store: values.store });
+      if (names.length !== 1) throw new Error(missingChange(undefined, names));
+      [change] = names;
+    }
+    if (needsChange.has(command) && !change)
+      throw new Error(`Usage: spectater ${command} <change>`);
+    await commands[command](values, change);
   }
 } catch (error) {
   process.stderr.write(`spectater: ${error.message}\n`);

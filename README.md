@@ -15,17 +15,28 @@ Your agent drafts a proposal, design, specs and tasks. SpecTater opens them in a
 
 ## Quick start
 
-Install the skill for your agent:
+Install the skill for your agents, in every project (`-g`):
 
 ```sh
-npx skills add morhaf-ko/spectater
+npx skills add morhaf-ko/spectater -g
 ```
 
-Then ask your agent to review a change, for example "review the add-dark-mode proposal with spectater". The skill tells the agent to run `npx -y spectater`, so there is nothing else to install.
+Then ask your agent to review a change, for example "let's go through the add-dark-mode proposal". You don't need to mention spectater: agents pick the skill when you ask to review or give feedback on an OpenSpec proposal, design, spec or tasks. The skill runs `npx -y spectater`, so there is nothing else to install.
 
 Without the skill, tell the agent: "Run `npx -y spectater workflow` and follow it for the add-dark-mode change."
 
-Requirements: Node 22.12 or newer, OpenSpec 1.15 or newer, macOS or Linux. Git is optional; it powers the "What changed" diff.
+Requirements: Node 22.12 or newer, the [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) 1.15 or newer (`npm install -g @fission-ai/openspec`), macOS or Linux. Git is optional; it powers the "What changed" diff.
+
+### Review every change automatically
+
+To have agents open a review whenever they finish drafting a change, add this to your project's `openspec/config.yaml`. OpenSpec passes `context` to the agent whenever it drafts an artifact (and during apply and archive), in every agent it supports:
+
+```yaml
+context: |
+  When you finish drafting or revising a change's artifacts, open the change for review with `npx -y spectater open <change>` and follow `npx -y spectater workflow`. No browser is needed: spectater prints a review URL for the user.
+```
+
+If your project doesn't use OpenSpec's workflows, put the same sentence in `AGENTS.md` or `CLAUDE.md` instead.
 
 ## How it works
 
