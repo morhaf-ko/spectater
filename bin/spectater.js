@@ -233,19 +233,28 @@ const commands = {
       : values.message;
     const { record } = await running(values, change);
     if (!record) return print({ status: 'stopped', change, next_step: nextSteps.stopped });
-    const result = await agentRequest(record, 'reply', {
-      status: values.status ?? 'done',
-      body,
-      batch: values.batch === undefined ? undefined : Number(values.batch),
-    });
+    const result = await agentRequest(
+      record,
+      'reply',
+      {
+        status: values.status ?? 'done',
+        body,
+        batch: values.batch === undefined ? undefined : Number(values.batch),
+      },
+      60000,
+    );
+    const next =
+      result.activity === 'replied'
+        ? `Run: spectater wait ${change}`
+        : `Revise the change, then run: spectater reply ${change} --message-file <result>`;
     print({
       status: result.status,
       change,
       batch: result.batch,
-      next_step:
-        result.activity === 'replied'
-          ? `Run: spectater wait ${change}`
-          : `Revise the change, then run: spectater reply ${change} --message-file <result>`,
+      ...(result.sourceError && { sourceError: result.sourceError }),
+      next_step: result.sourceError
+        ? `The reviewer still sees the previous source: ${result.sourceError} Fix it, run spectater refresh ${change}, then continue. ${next}`
+        : next,
     });
   },
 

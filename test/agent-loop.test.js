@@ -70,6 +70,7 @@ test('wait redelivers a batch until the agent replies, then delivers the next on
 });
 
 test('a reply re-reads the change when file watching is unavailable', async (t) => {
+  // Watching off proves the reply itself re-reads; replies take the same path with a watcher.
   const { f, review, agent } = await served(t, { watch: false });
   await submit(review, 'Revise this.');
   await agent('wait', { timeout: 0 });
@@ -78,6 +79,10 @@ test('a reply re-reads the change when file watching is unavailable', async (t) 
   await agent('reply', { status: 'done', body: 'Revised.' });
   assert.match(review.view().documents[0].source, /Revised by the agent/);
   assert.equal(review.view().activity[review.state.batches[0].id].status, 'replied');
+  await writeFile(f.file, 'x'.repeat(1024 * 1024 + 1));
+  const failed = await agent('reply', { status: 'done', body: 'Revised again.', batch: 1 });
+  assert.match(failed.sourceError, /1 MiB/);
+  assert.match(review.view().documents[0].source, /Revised by the agent/);
 });
 
 test('one listener at a time: a second wait is refused unless it takes over', async (t) => {
