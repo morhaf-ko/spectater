@@ -23,15 +23,15 @@ No registry release is published by these instructions. Automatic browser openin
 
 1. Read the selected change's native artifact list and rendered or exact source view.
 2. Select text, type in the popover and save a comment. Rendered selections show exact or enclosing-span precision; selections across formatting and paragraphs use a labeled enclosing Markdown range.
-3. Submit a batch. An existing waiting conversation receives it; otherwise it stays queued. Copy its retrieval command or Markdown export for manual handoff.
+3. Submit a batch of new or changed comments. An existing waiting conversation receives it; otherwise it stays queued. Copy its retrieval command or Markdown export for manual handoff.
 4. Have the existing agent read the explicit batch and revise Markdown within its existing authorization.
-5. Source updates automatically after selected-change saves. Old comments become stale or orphaned; reattachment is explicit and preserves original anchors. Submitted batches remain unchanged.
+5. Source updates automatically after selected-change saves. Old comments become stale or orphaned; reattachment is explicit and preserves original anchors. Submitted contents remain unchanged; undelivered batches can be paused for editing or cancelled. Update queued batch creates a replacement.
 
 ```sh
 bun bin/spectater.js feedback --review REVIEW_ID --batch BATCH_ID --format markdown
 ```
 
-Submission saves an immutable batch and returns it to an explicitly waiting CLI. It does not start an agent, resolve comments or approve implementation, merge or deployment. See [workflow integration](docs/workflow.md).
+Submission saves an immutable batch and returns it to an explicitly waiting CLI after durable handoff. Before handoff, use Edit queued or Cancel submission. After handoff, Send correction edits a comment for the next batch; it cannot recall delivered instructions. It does not start an agent, resolve comments or approve implementation, merge or deployment. See [workflow integration](docs/workflow.md).
 
 ## Agent loop
 
@@ -43,7 +43,7 @@ Implementation requirements, design and task completion are tracked in [the acti
 
 The reader follows the Clean design system. The sun/moon button starts by following your OS preference. Click it to switch light/dark; **Use system theme** under **Details** restores automatic appearance. The choice survives reloads for that local origin. A new server port starts with System. No theme setup or dependencies are needed.
 
-Artifact metadata is under **Details**. Select text to open a focused comment popover; saved comments appear in the sidebar, where you can edit, resolve or delete them. Deletion has Undo and a restore list. Submitted batches remain immutable. Drafts can resume after a reload in the same tab when browser storage is available; save comments for durable storage. Batch export appears after submission or opening a saved batch. The interface uses the native Apple system font stack and a local vector potato logo, with no font downloads.
+Artifact metadata is under **Details**. Select text to open a focused comment popover; saved comments appear in the sidebar, where you can edit, resolve or delete them. Deletion has Undo and a restore list. Submitted batches remain immutable. Drafts can resume after a reload in the same tab when browser storage is available; save comments for durable storage. Copy/download stays collapsed under More after submission. Opening a saved batch reveals its historical export. The interface uses the native Apple system font stack and a local vector potato logo, with no font downloads.
 
 ## Configuration
 

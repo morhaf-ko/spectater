@@ -69,6 +69,17 @@ The system SHALL persist acknowledged comments and batches privately outside can
 - **WHEN** another writer conflicts, persistence fails or stored data is invalid
 - **THEN** the operation reports failure without false acknowledgement, discarding prior valid data or overwriting another writer
 
+### Requirement: Incremental submission
+The system SHALL submit only new or changed open comments by default, comparing source anchors and bodies against their latest active submission. It MUST NOT silently resend unchanged unresolved feedback or submit another version of a comment while its prior batch is still queued; correction of queued entries uses explicit batch editing. Replacing a paused batch MUST use its current open saved comments and preserve prior immutable entries.
+
+#### Scenario: Submit again without changes
+- **WHEN** all open comments already match their latest active submission
+- **THEN** the reader offers no new submission and a direct submit reports that no new or changed comments exist
+
+#### Scenario: Correct delivered feedback
+- **WHEN** the operator edits a comment already handed to the CLI
+- **THEN** the next submission contains the changed comment without recalling or modifying the earlier batch
+
 ### Requirement: Immutable submission
 The system SHALL create an identified immutable batch on explicit submission and acknowledge its durable receipt. It MUST retain selected source, document hashes and comment bodies for deterministic retrieval and MUST NOT infer agent receipt, resolution or implementation approval.
 

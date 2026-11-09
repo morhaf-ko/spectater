@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createDiscovery, readDocument } from './discovery.js';
-import { openStore } from './storage.js';
+import { feedback, openStore } from './storage.js';
+import { batchStatus, deliverable, pendingComments } from './queue.js';
 import { anchor, locate, render } from './markdown.js';
 
 export async function openReview(options, dependencies = {}) {
@@ -43,8 +44,9 @@ export async function openReview(options, dependencies = {}) {
       documents: review.documents.map(({ file, canonical, ...d }) => ({ ...d, ...current.get(d.id), html: rendered.get(current.get(d.id)?.hash) })),
       comments: state.comments.filter(c => !c.deletedAt).map(c => ({ ...c, ...locate(c, current.get(c.documentId)) })),
       deletedComments: state.comments.filter(c => c.deletedAt).map(c => ({ ...c, ...locate(c, current.get(c.documentId)) })),
-      activity: state.activity || {},
-      batches: state.batches.map(({ entries, ...batch }) => ({ ...batch, count: entries.length })),
+      activity: state.activity || {}, queue: state.queue || {},
+      pendingCommentIds: pendingComments(state).map(comment => comment.id),
+      batches: state.batches.map(({ entries, ...batch }) => ({ ...batch, count: entries.length, commentIds: entries.map(entry => entry.id) })),
       snapshots: Object.fromEntries(state.comments.map(c => [c.hash, state.snapshots[c.hash]])) };
   }
   async function checkRevision(input) {
@@ -61,9 +63,22 @@ export async function openReview(options, dependencies = {}) {
     subscribe(observer) { observers.add(observer); return () => observers.delete(observer); },
     view,
     refresh: () => serial(async () => { await refresh(); return view(); }),
+    claimBatch: ({ batchId, after }) => serial(async () => {
+      const state = store.state;
+      const batch = batchId ? state.batches.find(item => item.id === batchId) : state.batches.find(item => item.sequence > after && deliverable(state, item));
+      if (!batch) { if (batchId) throw new Error('Unknown feedback batch.'); return null; }
+      if (!deliverable(state, batch)) throw new Error('Batch is withdrawn or being edited. Use --history for an archive copy.');
+      if (batchStatus(state, batch.id) !== 'claimed') {
+        state.queue ||= {}; state.queue[batch.id] = { status: 'claimed', at: new Date().toISOString() };
+        state.revision++; await store.commit(state);
+        notify({ type: 'activity', revision: state.revision });
+      }
+      return feedback(state, batch.id);
+    }),
     recordActivity: (batchId, input) => serial(async () => {
       const state = store.state;
       if (!state.batches.some(batch => batch.id === batchId)) throw new Error('Unknown feedback batch.');
+      if (!['queued', 'claimed'].includes(batchStatus(state, batchId))) throw new Error('Batch is withdrawn or being edited.');
       if (!['received', 'working', 'done'].includes(input.status)) throw new Error('Activity status must be received, working or done.');
       const body = input.body ?? '';
       if (typeof body !== 'string' || body.length > 10000 || (input.status === 'done' && !body.trim())) throw new Error('A reply must contain 1–10,000 characters.');
@@ -84,19 +99,31 @@ export async function openReview(options, dependencies = {}) {
       return view();
     }),
     mutate: input => serial(async () => {
-      await checkRevision(input);
+      if (['cancel-batch', 'edit-batch'].includes(input.action)) {
+        if (input.revision !== store.state.revision) throw new Error('Revision conflict. Refresh review state and retry.');
+      } else await checkRevision(input);
       const state = store.state;
-      if (input.action === 'comment') {
+      if (['cancel-batch', 'edit-batch'].includes(input.action)) {
+        const batch = state.batches.find(item => item.id === input.id);
+        if (!batch) throw new Error('Unknown feedback batch.');
+        const status = batchStatus(state, batch.id);
+        if (!['queued', 'editing'].includes(status)) throw new Error('Batch already handed off or withdrawn. Send a correction instead.');
+        if (input.action === 'edit-batch' && state.batches.some(item => item.id !== batch.id && batchStatus(state, item.id) === 'editing')) throw new Error('Finish or cancel the current queued edit first.');
+        state.queue ||= {}; state.queue[batch.id] = { status: input.action === 'edit-batch' ? 'editing' : 'cancelled', at: new Date().toISOString() };
+      } else if (input.action === 'comment') {
         const snapshot = current.get(input.documentId);
         if (!snapshot || snapshot.hash !== input.hash) throw new Error('Revision conflict: select the current document.');
         if (typeof input.body !== 'string' || !input.body.trim() || input.body.length > 10000) throw new Error('Comment must contain 1–10,000 characters.');
         state.comments.push({ id: randomUUID(), documentId: input.documentId, path: snapshot.path, hash: snapshot.hash,
           ...anchor(snapshot, input), body: input.body.trim(), createdAt: new Date().toISOString(), state: 'open' });
       } else if (input.action === 'submit') {
-        const entries = state.comments.filter(c => c.state === 'open' && !c.deletedAt).map(c => ({ ...c,
+        const entries = pendingComments(state).map(c => ({ ...c,
           line: state.snapshots[c.hash].source.slice(0, c.start).split('\n').length }));
-        if (!entries.length) throw new Error('Add an open comment before submitting.');
-        state.batches.push({ id: randomUUID(), sequence: state.batches.length + 1, submittedAt: new Date().toISOString(), entries });
+        const editing = state.batches.find(batch => batchStatus(state, batch.id) === 'editing');
+        if (!entries.length) throw new Error(editing ? 'Keep an open comment or cancel the queued batch.' : 'Add an open comment that is new or changed before submitting.');
+        const batch = { id: randomUUID(), sequence: state.batches.length + 1, submittedAt: new Date().toISOString(), entries };
+        state.batches.push(batch);
+        if (editing) state.queue[editing.id] = { status: 'superseded', at: batch.submittedAt, replacementId: batch.id };
       } else if (['resolve', 'reattach', 'edit', 'delete', 'restore'].includes(input.action)) {
         const comment = state.comments.find(c => c.id === input.id);
         if (!comment) throw new Error('Unknown comment.');
@@ -117,6 +144,7 @@ export async function openReview(options, dependencies = {}) {
       } else throw new Error('Unknown review action.');
       state.revision++;
       await store.commit(state);
+      notify({ type: 'activity', revision: state.revision });
       if (input.action === 'submit') notify({ type: 'batch', sequence: state.batches.at(-1).sequence });
       return view();
     }),

@@ -30,18 +30,24 @@ try {
   const d = state.documents[0], quote = 'exact', start = d.source.indexOf(quote);
   state = await cli.request('action', { action: 'comment', revision: state.revision, documentId: d.id, hash: d.hash, start, end: start + quote.length, precision: 'exact', quote, body: 'Packaged feedback.' });
   state = await cli.request('action', { action: 'submit', revision: state.revision });
-  const args = [bin, 'feedback', '--review', state.reviewId, '--batch', state.batches[0].id, '--format', 'json'];
+  const original = state.batches[0].id;
+  state = await cli.request('action', { action: 'edit-batch', id: original, revision: state.revision });
+  assert.equal(state.queue[original].status, 'editing');
+  state = await cli.request('action', { action: 'submit', revision: state.revision });
+  assert.equal(state.queue[original].status, 'superseded');
+  const activeBatch = state.batches[1].id;
+  const args = [bin, 'feedback', '--review', state.reviewId, '--batch', activeBatch, '--format', 'json'];
   const first = await exec(process.execPath, args, { env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile } });
   assert.equal(JSON.parse(first.stdout).entries[0].body, 'Packaged feedback.');
   assert.equal(first.stdout, (await exec(process.execPath, args, { env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile } })).stdout);
   assert.equal(await readFile(f.file, 'utf8'), d.source);
   const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
   const cursor = JSON.parse((await exec(process.execPath, [bin, 'feedback', '--review', state.reviewId, '--after', '0', '--wait', '0', '--format', 'json'], { env })).stdout);
-  assert.equal(cursor.status, 'batch'); assert.equal(cursor.sequence, 1);
-  await exec(process.execPath, [bin, 'reply', '--review', state.reviewId, '--batch', state.batches[0].id, '--status', 'working'], { env });
+  assert.equal(cursor.status, 'batch'); assert.equal(cursor.sequence, 2);
+  await exec(process.execPath, [bin, 'reply', '--review', state.reviewId, '--batch', activeBatch, '--status', 'working'], { env });
   const message = path.join(temp, 'reply.txt'); await writeFile(message, 'Packaged agent reply.');
-  await exec(process.execPath, [bin, 'reply', '--review', state.reviewId, '--batch', state.batches[0].id, '--message-file', message], { env });
-  assert.equal((await cli.request('state')).activity[state.batches[0].id].replies[0].body, 'Packaged agent reply.');
+  await exec(process.execPath, [bin, 'reply', '--review', state.reviewId, '--batch', activeBatch, '--message-file', message], { env });
+  assert.equal((await cli.request('state')).activity[activeBatch].replies[0].body, 'Packaged agent reply.');
   const reused = await exec(process.execPath, [bin, 'open', '--project', f.project, '--change', 'example', '--no-open'], { env });
   assert.match(reused.stdout, /Reused active review/);
   const revised = `Package revision.\n\n${d.source}`;
@@ -49,5 +55,5 @@ try {
   const receipt = JSON.parse((await exec(process.execPath, [bin, 'refresh', '--review', state.reviewId], { env })).stdout);
   assert.equal(receipt.status, 'refreshed');
   assert.equal((await cli.request('state')).documents[0].source, revised);
-  console.log(`Package passed: ${listing.length} allowlisted files, temporary offline Bun install, installed skill/workflow/open/wait/retrieval/reply/reuse/refresh; source changes limited to the explicit fixture revision.`);
+  console.log(`Package passed: ${listing.length} allowlisted files, temporary offline Bun install, installed skill/workflow/open/wait/retrieval/queue replacement/reply/reuse/refresh; source changes limited to the explicit fixture revision.`);
 } finally { await cli?.close(); await f.cleanup(); await rm(temp, { recursive: true, force: true }); }

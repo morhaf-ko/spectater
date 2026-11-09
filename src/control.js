@@ -3,7 +3,7 @@ import { lstat, unlink, chmod, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { hash } from './discovery.js';
-import { privateDirectory, feedback } from './storage.js';
+import { privateDirectory } from './storage.js';
 
 export async function controlPath(directory, reviewId) {
   if (!/^[a-f0-9]{64}$/.test(reviewId)) throw new Error('Invalid review id.');
@@ -60,26 +60,28 @@ export async function startControl(review, url, presence, refresh = () => review
     response.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     response.end(JSON.stringify({ protocolVersion: 1, reviewId: review.state.reviewId, ...result }));
   };
-  const next = after => {
-    const state = review.state;
-    const batch = state.batches.find(item => item.sequence > after);
-    return batch ? feedback(state, batch.id) : null;
-  };
   const finish = (waiter, result) => {
     if (!waiting.delete(waiter)) return;
     clearTimeout(waiter.timer); send(waiter.response, result); presence(waiting.size);
   };
-  const unsubscribe = review.subscribe(event => {
-    if (event.type !== 'batch') return;
-    for (const waiter of [...waiting]) {
-      const batch = next(waiter.after);
+  const deliver = async waiter => {
+    if (!waiting.has(waiter) || waiter.response.destroyed) return;
+    try {
+      const batch = await review.claimBatch({ after: waiter.after });
       if (batch) finish(waiter, { status: 'batch', batch });
-    }
+    } catch (error) { finish(waiter, { status: 'error', error: error.message }); }
+  };
+  const unsubscribe = review.subscribe(event => {
+    if (event.type === 'batch') for (const waiter of [...waiting]) void deliver(waiter);
   });
   const server = http.createServer(async (request, response) => {
     try {
       const parsed = new URL(request.url, 'http://localhost');
       if (request.method === 'GET' && parsed.pathname === '/status' && !parsed.search) return send(response, { status: 'active', url, sequence: review.state.batches.length });
+      if (request.method === 'GET' && parsed.pathname === '/batch') {
+        if (parsed.searchParams.size !== 1 || !parsed.searchParams.has('batch')) throw new Error('Supply an exact batch id.');
+        return send(response, { status: 'batch', batch: await review.claimBatch({ batchId: parsed.searchParams.get('batch') }) });
+      }
       if (request.method === 'POST' && parsed.pathname === '/refresh' && !parsed.search) {
         const state = await refresh();
         return send(response, { status: 'refreshed', revision: state.revision });
@@ -101,13 +103,14 @@ export async function startControl(review, url, presence, refresh = () => review
       const after = Number(parsed.searchParams.get('after'));
       const wait = Number(parsed.searchParams.get('wait'));
       if (!parsed.searchParams.has('after') || !parsed.searchParams.has('wait') || !Number.isSafeInteger(after) || after < 0 || after > review.state.batches.length || !Number.isInteger(wait) || wait < 0 || wait > 55000) throw new Error('Supply a valid sequence cursor and wait budget of 0–55000 ms.');
-      const batch = next(after);
+      const batch = await review.claimBatch({ after });
       if (batch) return send(response, { status: 'batch', batch });
       if (!wait) return send(response, { status: 'timeout', after });
       if (waiting.size >= 16) throw new Error('Too many feedback listeners.');
       const waiter = { response, after };
       waiter.timer = setTimeout(() => finish(waiter, { status: 'timeout', after }), wait);
       waiting.add(waiter); presence(waiting.size);
+      void deliver(waiter);
       response.once('close', () => {
         if (waiting.delete(waiter)) { clearTimeout(waiter.timer); presence(waiting.size); }
       });

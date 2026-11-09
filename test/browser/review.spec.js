@@ -184,6 +184,7 @@ test('rendered precision, source fallback, Unicode/CRLF, inert Markdown and clip
     expect(review.state.comments[3].slice).toBe('😀 Unicode');
     expect(review.state.comments[3].start).toBe(source.indexOf('😀 Unicode'));
     await page.locator('#submit').click(); await expect(page.locator('#message')).toContainText('Batch saved.');
+    await page.locator('#export-details > summary').click();
     await page.locator('#copy').click(); await expect(page.locator('#message')).toContainText('Clipboard unavailable.');
     const downloaded = page.waitForEvent('download'); await page.locator('#download').click();
     expect((await downloaded).suggestedFilename()).toBe('spectater-feedback.md');
@@ -404,5 +405,52 @@ test('rendered multi-paragraph selections open the composer and preserve enclosi
     await expect(page.locator('#message')).toContainText('unmapped content');
     await expect(page.locator('#save')).toBeDisabled();
     expect(await readFile(f.file, 'utf8')).toBe(source);
+  } finally { await server?.close(); await f.cleanup(); }
+});
+
+
+test('queued submissions can be paused, replaced and cancelled; corrections send only changed comments', async ({ page }) => {
+  const f = await fixture(); let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+    await page.goto(server.url); await expect(page.locator('#message')).toContainText('Ready.');
+    await selectSource(page, 'exact'); await page.locator('#comment').fill('Fix this feedback.'); await page.locator('#save').click();
+    await expect(page.locator('#comments')).toContainText('Fix this feedback.');
+    await page.locator('#submit').click(); await expect(page.locator('#message')).toContainText('Batch saved.');
+    await expect(page.locator('#export-details')).not.toHaveAttribute('open', '');
+    await expect(page.locator('#copy')).not.toBeVisible(); await expect(page.locator('#submit')).toBeHidden();
+    await page.getByRole('button', { name: 'Edit queued batch 1', exact: true }).click();
+    await expect(page.locator('#queue-editing')).toContainText('delivery paused');
+    await page.locator('#comments').getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.locator('#comment').fill('Corrected before delivery.'); await page.locator('#save').click();
+    await expect(page.locator('#comments')).toContainText('Corrected before delivery.');
+    await page.getByRole('button', { name: 'Update queued batch', exact: true }).click();
+    await expect(page.locator('#receipts')).toContainText('Replaced by batch 2');
+    expect(review.state.batches[0].entries[0].body).toBe('Fix this feedback.');
+    expect(review.state.batches[1].entries[0].body).toBe('Corrected before delivery.');
+    await page.getByRole('button', { name: 'Cancel batch 2', exact: true }).click();
+    await expect(page.locator('#receipts')).toContainText('Cancelled');
+    await expect(page.locator('#comments')).toContainText('Corrected before delivery.');
+    await page.locator('#submit').click(); await expect(page.locator('#receipts')).toContainText('Batch 3');
+    const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
+    const result = await promisify(execFile)(process.execPath, ['bin/spectater.js', 'feedback', '--review', review.state.reviewId, '--after', '0', '--wait', '0', '--format', 'json'], { env });
+    expect(JSON.parse(result.stdout).sequence).toBe(3);
+    await expect(page.locator('#receipts')).toContainText('Received by agent CLI');
+    await expect(page.getByRole('button', { name: 'Cancel batch 3', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Send correction', exact: true }).click();
+    await page.locator('#comment').fill('A follow-up after handoff.'); await page.locator('#save').click();
+    await expect(page.locator('#comments')).toContainText('A follow-up after handoff.');
+    await page.locator('#submit').click(); await expect(page.locator('#receipts')).toContainText('Batch 4');
+    expect(review.state.batches[3].entries).toHaveLength(1);
+    expect(review.state.batches[2].entries[0].body).toBe('Corrected before delivery.');
+    for (const [width, theme] of [[1440, 'light'], [390, 'dark']]) {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 }); await setTheme(page, theme);
+      await page.locator('#receipts').scrollIntoViewIfNeeded();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: `.tmp/explore-spectater/screenshots/queue-controls-${width}-${theme}.png`, fullPage: true });
+    }
+    await page.reload(); await expect(page.locator('#message')).toContainText('Ready.');
+    await page.locator('#export-details > summary').click();
+    await expect(page.locator('#export')).toHaveValue(/A follow-up after handoff/);
   } finally { await server?.close(); await f.cleanup(); }
 });

@@ -2,12 +2,13 @@
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { stateDirectory, loadState, feedback, feedbackMarkdown, privateDirectory } from '../src/storage.js';
+import { batchStatus, deliverable } from '../src/queue.js';
 import { loadConfig } from '../src/config.js';
 
 const help = `SpecTater — local OpenSpec review
 
 spectater open --project <directory> --change <id> [--store <id>] [--no-open]
-spectater feedback --review <id> --batch <id> [--format markdown|json]
+spectater feedback --review <id> --batch <id> [--format markdown|json] [--history]
 spectater feedback --review <id> --after <sequence> [--wait <0–55 seconds>] [--format markdown|json]
 spectater refresh --review <id>
 spectater reply --review <id> --batch <id> --status working|done [--message <text> | --message-file <file>]
@@ -20,6 +21,8 @@ or ~/.config/spectater/config.json). No config is required.
 Requires Bun 1.4.4 and OpenSpec 1.16.1 (also verified: 1.15.0).
 Stop a serving process with Ctrl-C. Reopening the same active review reuses it.
 Cursor waits default to 55 seconds and never consume a batch. A timeout is explicit.
+Cancelled/paused/replaced batches are skipped. Live reads claim delivery before output.
+Use --history for an exact archive copy without delivery or receipt.
 State: platform application-state directory; override with SPECTATER_STATE_DIR.
 Submission does not grant approval or start/wake another agent.
 `;
@@ -29,7 +32,8 @@ const workflow = `Review loop in the existing conversation:
    Keep the serving command in your existing terminal's owned background job controls.
    Open returns Review and Ready receipts; a second open reuses the same active process.
 3. Wait: spectater feedback --review REVIEW_ID --after 0 --wait 55 --format json
-   Use the last handled batch sequence as the next cursor. Queued batches return immediately.
+   Use the last handled batch sequence as the next cursor; withdrawn sequences are skipped.
+   Queued batches return immediately after durable handoff; only unclaimed batches can be cancelled.
    A timeout does not consume data or imply completion; repeat only while review is requested.
 4. CLI retrieval records Received while the reader is active. Report work explicitly:
    spectater reply --review REVIEW_ID --batch BATCH_ID --status working
@@ -48,7 +52,7 @@ try {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     project: { type: 'string' }, change: { type: 'string' }, store: { type: 'string' },
     review: { type: 'string' }, batch: { type: 'string' }, format: { type: 'string', default: 'markdown' },
-    after: { type: 'string' }, wait: { type: 'string' }, status: { type: 'string', default: 'done' },
+    history: { type: 'boolean' }, after: { type: 'string' }, wait: { type: 'string' }, status: { type: 'string', default: 'done' },
     message: { type: 'string' }, 'message-file': { type: 'string' },
     'no-open': { type: 'boolean' }, config: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   } });
@@ -69,21 +73,36 @@ try {
         try { await controlRequest(directory, values.review, '/received?batch=' + encodeURIComponent(batch.id), 'POST'); }
         catch (error) { if (!['ENOENT', 'ECONNREFUSED'].includes(error.code)) throw error; }
       };
+      const { controlRequest } = await import('../src/control.js');
+      const offline = error => ['ENOENT', 'ECONNREFUSED'].includes(error.code);
       if (values.batch) {
         if (values.after !== undefined || values.wait !== undefined) throw new Error('Choose an exact batch or a sequence cursor.');
-        const batch = feedback(state, values.batch);
-        await received(batch);
+        let batch;
+        if (values.history) batch = feedback(state, values.batch);
+        else {
+          try { batch = (await controlRequest(directory, values.review, '/batch?batch=' + encodeURIComponent(values.batch))).batch; }
+          catch (error) {
+            if (!offline(error)) throw error;
+            if (batchStatus(state, values.batch) !== 'claimed') throw new Error('Review is not running. Reopen it for delivery, or use --history for an archive copy.');
+            batch = feedback(state, values.batch);
+          }
+          await received(batch);
+        }
         process.stdout.write(values.format === 'json' ? JSON.stringify(batch, null, 2) + '\n' : feedbackMarkdown(batch));
       } else {
+        if (values.history) throw new Error('--history requires an exact --batch.');
         const after = Number(values.after), seconds = Number(values.wait ?? 55);
         if (values.after === undefined || !Number.isSafeInteger(after) || after < 0 || after > state.batches.length || !Number.isInteger(seconds) || seconds < 0 || seconds > 55) throw new Error('Supply --after as a valid batch sequence and --wait as 0–55 seconds.');
-        const queued = state.batches.find(item => item.sequence > after);
-        let result = queued ? { status: 'batch', batch: feedback(state, queued.id) } : { status: 'timeout', after };
-        if (!queued && seconds) {
-          const { controlRequest } = await import('../src/control.js');
-          try { result = await controlRequest(directory, values.review, '/next?after=' + after + '&wait=' + seconds * 1000, 'GET', seconds * 1000 + 3000); }
-          catch (error) { if (['ENOENT', 'ECONNREFUSED'].includes(error.code)) throw new Error('Review is not running. Reopen it or retrieve an existing batch.'); throw error; }
+        let result;
+        try { result = await controlRequest(directory, values.review, '/next?after=' + after + '&wait=' + seconds * 1000, 'GET', seconds * 1000 + 3000); }
+        catch (error) {
+          if (!offline(error)) throw error;
+          const batch = state.batches.find(item => item.sequence > after && deliverable(state, item));
+          if (batch && batchStatus(state, batch.id) === 'claimed') result = { status: 'batch', batch: feedback(state, batch.id) };
+          else if (!batch && !seconds) result = { status: 'timeout', after };
+          else throw new Error('Review is not running. Reopen it before pending feedback can be delivered.');
         }
+        if (result.error) throw new Error(result.error);
         if (result.status === 'batch') await received(result.batch);
         if (values.format === 'json') process.stdout.write(JSON.stringify(result.status === 'batch' ? { status: 'batch', ...result.batch } : { status: result.status, reviewId: values.review, after }, null, 2) + '\n');
         else process.stdout.write(result.status === 'batch' ? feedbackMarkdown(result.batch) : (result.status === 'timeout' ? 'No new feedback before timeout.\n' : 'Review stopped before new feedback arrived.\n'));

@@ -45,6 +45,18 @@ function validate(state, id) {
       if ((activity.status === 'replied') !== (activity.replies.length > 0)) throw new Error('Corrupt reply status.');
     }
   }
+  if (state.queue !== undefined) {
+    if (!state.queue || typeof state.queue !== 'object' || Array.isArray(state.queue)) throw new Error('Corrupt queue metadata.');
+    let edits = 0;
+    for (const [id, item] of Object.entries(state.queue)) {
+      const batch = state.batches.find(batch => batch.id === id);
+      if (!batch || !item || !['claimed', 'cancelled', 'editing', 'superseded'].includes(item.status) || typeof item.at !== 'string' || !Number.isFinite(Date.parse(item.at))) throw new Error('Corrupt queue metadata.');
+      if (item.status === 'editing') edits++;
+      if (item.status !== 'claimed' && state.activity?.[id]) throw new Error('Withdrawn queue entry has a delivery receipt.');
+      if (item.status === 'superseded' && !state.batches.some(next => next.id === item.replacementId && next.sequence > batch.sequence)) throw new Error('Corrupt queue replacement.');
+    }
+    if (edits > 1) throw new Error('Multiple queued edits are unsupported.');
+  }
   return state;
 }
 

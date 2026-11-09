@@ -43,3 +43,10 @@ The operator authorized implementation after proposal review. Runtime and comman
 - [x] 6.1 Use the encoded change name in the review route while preserving canonical state identity, active-process reuse and capability checks; verify CLI/package and HTTP contracts.
 - [x] 6.2 Open the composer for rendered selections across formatting and paragraphs using explicit enclosing-source precision; verify real pointer and element-boundary selections, transformed text, unmapped fallback and saved source offsets in headless Chrome.
 - [x] 6.3 Run integrated checks, retain saved preview feedback and provide the updated review link for operator testing.
+
+## 7. Make queued feedback correctable
+
+- [x] 7.1 Serialize durable delivery claims with cancellation and paused queue editing; retain immutable history and restart-safe replacement links, skip withdrawn batches in cursor delivery, and reject cancellation after handoff.
+- [x] 7.2 Submit only new or changed open comments, block parallel resubmission of comments already queued, and update a paused batch from its current saved comments without resending unrelated old feedback.
+- [x] 7.3 Add edit/cancel/update queue controls, truthful delivered/cancelled/replaced states and collapsed copy/download actions; keep after-delivery correction explicit and preserve drafts.
+- [x] 7.4 Verify delivery/cancellation races, retries, restart persistence, offline/archive retrieval, browser flow and installed CLI; run the integrated gates and retain preview feedback for operator review.

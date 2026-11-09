@@ -151,3 +151,7 @@ textarea::placeholder { color: var(--muted); }
 
 .agent-reply { border-left: 2px solid var(--border); padding-left: 12px; }
 .agent-reply p { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.queue-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.receipt .queue-actions button { width: auto; flex: 1 1 auto; padding-inline: var(--space-2); text-align: center; }
+.batch-history { margin-top: var(--space-4); }

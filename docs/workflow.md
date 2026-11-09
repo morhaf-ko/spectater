@@ -18,9 +18,9 @@ In the existing conversation, wait for the next submitted batch:
 spectater feedback --review REVIEW_ID --after 0 --wait 55 --format json
 ```
 
-Use the last handled sequence as the next cursor. Already queued batches return immediately; retries do not consume them. JSON reports status=batch with the immutable batch, status=timeout if nothing arrives in the bounded interval, or status=stopped when the serving process stops. Repeating a wait is a conversation decision, not an infinite tool loop. A stopped agent cannot be woken by the reader.
+Use the last handled sequence as the next cursor. Already queued batches return immediately after a durable handoff claim; retries do not consume them. Cancelled, editing and replaced batches are skipped, so sequence numbers may have gaps. JSON reports status=batch with the immutable batch, status=timeout if nothing arrives in the bounded interval, or status=stopped when the serving process stops. Repeating a wait is a conversation decision, not an infinite tool loop. A stopped agent cannot be woken by the reader.
 
-Retrieval records Received only after the CLI decodes the batch while the reader is active. Report work explicitly:
+A durable handoff makes the batch non-cancellable before its bytes leave the owning writer. Retrieval records Received only after the CLI decodes the batch while the reader is active. Report work explicitly:
 
 ```sh
 spectater reply --review REVIEW_ID --batch BATCH_ID --status working
@@ -49,6 +49,20 @@ spectater feedback --review REVIEW_ID --batch BATCH_ID --format markdown
 ```
 
 The browser also offers selectable/downloadable Markdown when clipboard access is denied.
+
+## Correct queued feedback
+
+Before CLI handoff, use **Edit queued** to pause delivery, edit or remove saved comments, then **Update queued batch**. The replacement has a new immutable receipt; the original remains in history. One queued edit is active at a time and survives restart. **Cancel submission** withdraws an undelivered batch while keeping its comments. A waiting agent may receive immediately, so cancellation is available only if it wins the serialized transition before handoff.
+
+Ordinary submission includes only new/changed open comments. A comment already queued must be corrected through its batch's Edit queued action. New unrelated comments can be submitted after a paused edit is updated or cancelled. After handoff, **Send correction** edits a delivered comment for another submission; it does not interrupt or recall earlier instructions. Unchanged unresolved comments are not automatically resent.
+
+Exact and cursor delivery use the active reader even for zero-wait retrieval. Offline retrieval remains available for previously handed-off batches. Reopen the reader to deliver a pending batch. An explicit archive copy, including cancelled/replaced feedback, is available without making a claim:
+
+```sh
+spectater feedback --review REVIEW_ID --batch BATCH_ID --history --format markdown
+```
+
+Copy/download lives under collapsed **More** and opens automatically only when choosing a historical batch. These exports are manual handoff/recordkeeping tools, not new agent submissions. An external copy cannot be recalled by cancelling its original queue entry.
 
 ## On-demand skill
 

@@ -153,6 +153,7 @@ function display() {
 function displayFeedback() {
   displayPresence();
   $('comments').replaceChildren();
+  const deliveredIds = new Set(state.batches.filter(batch => state.queue?.[batch.id]?.status === 'claimed' || state.activity?.[batch.id]).flatMap(batch => batch.commentIds));
   for (const c of state.comments) {
     const section = element('section', '', 'comment');
     section.append(element('h3', `${c.status} · ${c.state}`), element('p', c.path, 'note'), element('blockquote', c.quote), element('p', c.body));
@@ -160,7 +161,8 @@ function displayFeedback() {
     const snapshot = state.snapshots[c.hash];
     original.append(element('p', `Revision ${c.hash}; ${c.precision} offsets [${c.start}, ${c.end})`, 'note'), element('pre', snapshot?.source.slice(Math.max(0, c.start - 120), c.end + 120) || c.slice));
     section.append(original, button(c.state === 'open' ? 'Resolve' : 'Reopen', () => action({ action: 'resolve', id: c.id })));
-    section.append(button('Edit', event => editComment(c, event.currentTarget.getBoundingClientRect())), button('Delete', () => action({ action: 'delete', id: c.id })));
+    const delivered = deliveredIds.has(c.id);
+    section.append(button(delivered ? 'Send correction' : 'Edit', event => editComment(c, event.currentTarget.getBoundingClientRect())), button('Delete', () => action({ action: 'delete', id: c.id })));
     if (c.status === 'stale') section.append(button('Reattach to suggested text', () => action({ action: 'reattach', id: c.id })));
     if (c.status === 'orphaned') section.append(element('p', 'No unique anchor. Keep this feedback or select source and add a new comment.', 'note'));
     $('comments').append(section);
@@ -174,21 +176,43 @@ function displayFeedback() {
     row.append(element('p', c.body), button('Restore', () => action({ action: 'restore', id: c.id })));
     $('deleted-list').append(row);
   }
-  $('submit').disabled = !state.comments.some(c => c.state === 'open');
+  const editing = state.batches.find(batch => state.queue?.[batch.id]?.status === 'editing');
+  $('queue-editing').hidden = !editing;
+  $('queue-editing').textContent = editing ? `Editing batch ${editing.sequence} · delivery paused. Edit saved comments, then update.` : '';
+  $('submit').textContent = editing ? 'Update queued batch' : 'Submit batch';
+  $('submit').disabled = !state.pendingCommentIds.length;
   $('submit').hidden = $('submit').disabled;
   $('receipts').replaceChildren();
+  const history = element('details', '', 'batch-history');
+  const historyCount = state.batches.filter(batch => ['cancelled', 'superseded'].includes(state.queue?.[batch.id]?.status)).length;
+  history.append(element('summary', `History · ${historyCount}`));
   for (const batch of [...state.batches].reverse()) {
     const receipt = element('div', '', 'receipt');
     receipt.append(button(`Batch ${batch.sequence} · ${batch.count} comments`, () => showBatch(batch.id)));
     const activity = state.activity?.[batch.id];
-    receipt.append(element('p', activity?.status === 'replied' ? 'Agent replied' : activity?.status === 'working' ? 'Agent working' : activity ? 'Received by agent CLI' : 'Saved · queued for agent', 'note'));
+    const queue = state.queue?.[batch.id];
+    const handedOff = queue?.status === 'claimed' || Boolean(activity);
+    const replacement = state.batches.find(item => item.id === queue?.replacementId);
+    const status = queue?.status === 'cancelled' ? 'Cancelled' : queue?.status === 'superseded' ? `Replaced by batch ${replacement.sequence}` : queue?.status === 'editing' ? 'Editing · delivery paused' : activity?.status === 'replied' ? 'Agent replied' : activity?.status === 'working' ? 'Agent working' : activity ? 'Received by agent CLI' : handedOff ? 'Handed to agent CLI' : 'Saved · queued for agent';
+    receipt.append(element('p', status, 'note'));
+    if (!handedOff && !['cancelled', 'superseded'].includes(queue?.status)) {
+      const controls = element('div', '', 'queue-actions');
+      if (!editing && queue?.status !== 'editing') {
+        const edit = button('Edit queued', () => action({ action: 'edit-batch', id: batch.id }));
+        edit.setAttribute('aria-label', `Edit queued batch ${batch.sequence}`); controls.append(edit);
+      }
+      const cancel = button('Cancel submission', () => action({ action: 'cancel-batch', id: batch.id }));
+      cancel.setAttribute('aria-label', `Cancel batch ${batch.sequence}`); controls.append(cancel); receipt.append(controls);
+    }
     for (const reply of activity?.replies || []) {
       const response = element('div', '', 'agent-reply');
       response.append(element('p', reply.body), element('time', new Date(reply.at).toLocaleString(), 'note'));
       receipt.append(response);
     }
-    $('receipts').append(receipt);
+    (['cancelled', 'superseded'].includes(queue?.status) ? history : $('receipts')).append(receipt);
   }
+  if (historyCount) $('receipts').append(history);
+  $('export-details').hidden = !state.batches.length;
 }
 async function operation(fn) {
   if (busy) return;
@@ -202,15 +226,15 @@ async function action(input) {
     acceptState(await api('action', { ...input, revision: state.revision }));
     if (input.action === 'comment' || input.action === 'edit') { $('comment').value = ''; editingId = undefined; selection = null; persistDraft(); }
     if (input.action === 'delete') undoDeletedId = input.id;
-    display(); announce(input.action === 'submit' ? 'Batch saved.' : input.action === 'delete' ? 'Comment deleted.' : 'Saved.');
-    if (input.action === 'submit') await showBatch(state.batches.at(-1).id);
+    display(); announce(input.action === 'submit' ? 'Batch saved.' : input.action === 'cancel-batch' ? 'Submission cancelled. Comments kept.' : input.action === 'edit-batch' ? 'Delivery paused. Edit saved comments, then update the queued batch.' : input.action === 'delete' ? 'Comment deleted.' : 'Saved.');
+    if (input.action === 'submit') await showBatch(state.batches.at(-1).id, false);
   });
 }
-async function showBatch(id) {
+async function showBatch(id, open = true) {
   try {
     $('export').value = (await api(`batch/${id}`)).markdown;
-    $('retrieval-command').textContent = `spectater feedback --review ${state.reviewId} --batch ${id} --format markdown`;
-    $('export-details').hidden = false; $('export-details').open = true;
+    $('retrieval-command').textContent = `spectater feedback --review ${state.reviewId} --batch ${id} --format markdown --history`;
+    $('export-details').hidden = false; $('export-details').open = open;
   }
   catch (error) { announce(error.message, true); }
 }
@@ -273,6 +297,7 @@ window.addEventListener('resize', closeComposer);
 $('submit').addEventListener('click', () => action({ action: 'submit' }));
 $('refresh').addEventListener('click', () => operation(async () => { acceptState(await api('refresh', {})); display(); announce('Refreshed. Select text again.'); void watchReview(); }));
 for (const name of ['rendered', 'source']) $(`${name}-mode`).addEventListener('click', () => { mode = name; displayDocument(); });
+$('export-details').addEventListener('toggle', () => { if ($('export-details').open && !$('export').value && state?.batches.length) void showBatch(state.batches.at(-1).id); });
 $('copy').addEventListener('click', async () => {
   try { if (!$('export').value) throw new Error('Submit or open a batch first.'); await navigator.clipboard.writeText($('export').value); announce('Export copied.'); }
   catch { $('export').focus(); $('export').select(); announce('Clipboard unavailable. Copy the selected export or download it.'); }
