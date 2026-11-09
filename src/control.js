@@ -14,7 +14,7 @@ export async function controlPath(directory, reviewId) {
   return socket;
 }
 
-export async function controlRequest(directory, reviewId, endpoint = '/status', method = 'GET', timeout = 5000) {
+export async function controlRequest(directory, reviewId, endpoint = '/status', method = 'GET', timeout = 5000, input) {
   const socketPath = await controlPath(directory, reviewId);
   return new Promise((resolve, reject) => {
     const request = http.request({ socketPath, path: endpoint, method, agent: false }, response => {
@@ -37,7 +37,7 @@ export async function controlRequest(directory, reviewId, endpoint = '/status', 
     const timer = setTimeout(() => request.destroy(new Error('Active review IPC timed out.')), timeout);
     request.once('close', () => clearTimeout(timer));
     request.once('error', error => reject(error));
-    request.end();
+    request.end(input === undefined ? undefined : JSON.stringify(input));
   });
 }
 
@@ -46,7 +46,7 @@ export async function activeReview(directory, reviewId) {
   catch (error) { if (['ENOENT', 'ECONNREFUSED'].includes(error.code)) return null; throw error; }
 }
 
-export async function startControl(review, url, presence) {
+export async function startControl(review, url, presence, refresh = () => review.refresh()) {
   const socket = await controlPath(review.directory, review.state.reviewId);
   try {
     const stat = await lstat(socket);
@@ -81,8 +81,21 @@ export async function startControl(review, url, presence) {
       const parsed = new URL(request.url, 'http://localhost');
       if (request.method === 'GET' && parsed.pathname === '/status' && !parsed.search) return send(response, { status: 'active', url, sequence: review.state.batches.length });
       if (request.method === 'POST' && parsed.pathname === '/refresh' && !parsed.search) {
-        const state = await review.refresh();
+        const state = await refresh();
         return send(response, { status: 'refreshed', revision: state.revision });
+      }
+      if (request.method === 'POST' && ['/received', '/reply'].includes(parsed.pathname)) {
+        if (parsed.searchParams.size !== 1 || !parsed.searchParams.has('batch')) throw new Error('Supply an exact batch id.');
+        let bytes = 0; const chunks = [];
+        for await (const chunk of request) {
+          bytes += chunk.length;
+          if (bytes > 65536) throw new Error('IPC request exceeds 64 KiB.');
+          chunks.push(chunk);
+        }
+        const input = parsed.pathname === '/received' ? { status: 'received' } : JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!input || typeof input !== 'object' || Array.isArray(input) || (parsed.pathname === '/reply' && !['working', 'done'].includes(input.status))) throw new Error('Supply working or done reply status.');
+        const state = await review.recordActivity(parsed.searchParams.get('batch'), input);
+        return send(response, { status: 'recorded', revision: state.revision });
       }
       if (request.method !== 'GET' || parsed.pathname !== '/next') return send(response, { error: 'Unknown IPC operation.' }, 404);
       const after = Number(parsed.searchParams.get('after'));
@@ -100,6 +113,8 @@ export async function startControl(review, url, presence) {
       });
     } catch (error) { send(response, { error: error.message }, 400); }
   });
+  server.requestTimeout = 20000;
+  server.headersTimeout = 10000;
   server.maxConnections = 20;
   try {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(socket, resolve); });

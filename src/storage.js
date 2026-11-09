@@ -34,6 +34,17 @@ function validate(state, id) {
   state.batches.forEach((b, i) => {
     if (typeof b.id !== 'string' || b.sequence !== i + 1 || typeof b.submittedAt !== 'string' || !Array.isArray(b.entries)) throw new Error('Corrupt feedback batch. Restore a valid copy.');
   });
+  if (state.activity !== undefined) {
+    if (!state.activity || typeof state.activity !== 'object' || Array.isArray(state.activity)) throw new Error('Corrupt feedback activity.');
+    const timestamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
+    for (const [batchId, activity] of Object.entries(state.activity)) {
+      if (!state.batches.some(batch => batch.id === batchId) || !activity || !['received', 'working', 'replied'].includes(activity.status) || !timestamp(activity.receivedAt) || (activity.startedAt !== undefined && !timestamp(activity.startedAt)) || !Array.isArray(activity.replies)) throw new Error('Corrupt feedback activity.');
+      for (const reply of activity.replies) {
+        if (!reply || typeof reply.id !== 'string' || typeof reply.body !== 'string' || !reply.body.trim() || reply.body.length > 10000 || !timestamp(reply.at)) throw new Error('Corrupt agent reply.');
+      }
+      if ((activity.status === 'replied') !== (activity.replies.length > 0)) throw new Error('Corrupt reply status.');
+    }
+  }
   return state;
 }
 

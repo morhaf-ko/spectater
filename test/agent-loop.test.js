@@ -103,3 +103,35 @@ test('installed-style CLI reuses an active review and retrieves queued feedback 
   assert.match((await run(['workflow'])).stdout, /refresh --review/);
   assert.match((await run(['skill'])).stdout, /name: spectater/);
 });
+
+
+test('activity survives restart without changing immutable batches and repeated receipts/replies are idempotent', async t => {
+  const f = await fixture(); let server, review;
+  t.after(async () => { await server?.close(); await f.cleanup(); });
+  review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+  await submit(review);
+  const id = review.state.reviewId, batchId = review.state.batches[0].id;
+  const immutable = JSON.stringify(review.state.batches);
+  const record = (endpoint, input) => controlRequest(f.stateDir, id, endpoint + '?batch=' + batchId, 'POST', 5000, input);
+  await record('/received');
+  const receivedRevision = review.state.revision;
+  await record('/received'); assert.equal(review.state.revision, receivedRevision);
+  assert.equal(review.view().activity[batchId].status, 'received');
+  await record('/reply', { status: 'working' });
+  assert.equal(review.view().activity[batchId].status, 'working');
+  // Agent metadata remains writable while source is being revised.
+  await writeFile(f.file, '# New source\n');
+  await record('/reply', { status: 'done', body: 'Revised the proposal; validation passed.' });
+  const revision = review.state.revision;
+  await record('/reply', { status: 'done', body: 'Revised the proposal; validation passed.' });
+  await record('/received'); await record('/reply', { status: 'working' });
+  assert.equal(review.state.revision, revision);
+  await assert.rejects(record('/reply', { status: 'done', body: '' }), /reply must contain/);
+  await assert.rejects(record('/reply', { status: 'received' }), /working or done/);
+  assert.equal(JSON.stringify(review.state.batches), immutable);
+  await server.close(); server = null;
+  review = await openReview(f.options, { directory: f.stateDir }); server = await startServer(review);
+  assert.equal(review.view().activity[batchId].status, 'replied');
+  assert.equal(review.view().activity[batchId].replies.length, 1);
+  assert.equal(JSON.stringify(review.state.batches), immutable);
+});

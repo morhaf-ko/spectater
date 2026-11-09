@@ -6,6 +6,21 @@ Connect local OpenSpec review to the conversation already drafting a change with
 
 ## ADDED Requirements
 
+### Requirement: Observed delivery and explicit agent replies
+The system SHALL distinguish saved feedback with no listener, queued feedback, CLI receipt, an agent's explicit working report and an agent's explicit reply. Activity MUST persist separately from immutable submitted batch contents. It MUST NOT infer addressed feedback, implementation approval or model execution from file changes alone.
+
+#### Scenario: Submit without a listener
+- **WHEN** the operator submits a batch while no feedback CLI is waiting
+- **THEN** the reader confirms durable saving and explains that the existing agent must resume listening without losing the batch
+
+#### Scenario: Receive and report work
+- **WHEN** the CLI receives a batch and the existing agent explicitly reports working or posts a reply
+- **THEN** the browser shows those observed states and reply text without altering the submitted batch
+
+#### Scenario: Retry or restart
+- **WHEN** feedback retrieval/reply acknowledgement is retried or the reader restarts
+- **THEN** existing batch data and recorded activity remain available without duplicate identical terminal replies
+
 ### Requirement: Bounded feedback waiting
 The system SHALL let the existing conversation wait for the next immutable submitted batch after an explicit sequence cursor. It MUST deliver already queued batches, retain them across listener disconnects and restarts, bound each wait to at most 55 seconds and report timeout explicitly. Retrieval MUST NOT consume batches or imply that their contents were addressed.
 

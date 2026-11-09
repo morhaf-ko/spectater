@@ -30,3 +30,10 @@ The operator authorized implementation after proposal review. Runtime and comman
 - [x] 4.3 Reuse an active exact-change review and refresh it through private local IPC; verify no second writer, browser update, draft preservation and stale/orphan reconciliation.
 - [x] 4.4 Ship a small first-party skill stub which reads current CLI guidance without installing global hooks or changing agent ownership; validate the stub and exercise its documented commands.
 - [x] 4.5 Reconcile design/spec/tasks as the planning authority, keep docs/workflow.md as usage only, and run the integrated contract/browser/package/smoke/native gates before local commit and Chrome preview handoff.
+
+## 5. Close the developer feedback loop
+
+- [x] 5.1 Watch only the selected change using bounded native filesystem events, coalesce writes and automatically refresh validated native discovery; test direct edits, atomic replacement, new/removed artifacts, unchanged events and preserved drafts/source bounds.
+- [x] 5.2 Persist observed received/working/replied activity separately from immutable batches; test queued submission, no-listener messaging, repeated retrieval, explicit agent status/replies and restart persistence.
+- [x] 5.3 Expose the complete loop in the browser and current CLI/skill guidance without hooks, model interruption, silent session control or false addressed/approval claims; test the installed package and headless Chrome round trip.
+- [x] 5.4 Run the integrated acceptance gates, retain existing preview data, then stay in this conversation's bounded feedback loop for the operator's final review.

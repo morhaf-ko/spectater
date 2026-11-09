@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { feedback, feedbackMarkdown } from './storage.js';
 import { startControl } from './control.js';
+import { watchChange } from './watch.js';
 
 const assets = new Map([
   ['/app.js', ['../web/app.js', 'text/javascript']],
@@ -15,11 +16,13 @@ const assets = new Map([
 ]);
 const shell = await readFile(new URL('../web/index.html', import.meta.url), 'utf8');
 
-export async function startServer(review) {
+export async function startServer(review, options = {}) {
   const capability = randomBytes(32).toString('hex');
   const route = `/review/${review.state.reviewId}`;
   let origin;
   let listeners = 0;
+  let watchStatus = { automatic: false };
+  let watcher;
   const clients = new Set();
   const broadcast = event => {
     for (const client of clients) {
@@ -27,7 +30,7 @@ export async function startServer(review) {
       else client.write(`${JSON.stringify(event)}\n`);
     }
   };
-  const unsubscribe = review.subscribe(event => { if (event.type === 'refresh') broadcast(event); });
+  const unsubscribe = review.subscribe(event => { if (['refresh', 'activity'].includes(event.type)) broadcast(event); });
   const server = http.createServer(async (request, response) => {
     const headers = {
       'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -50,12 +53,12 @@ export async function startServer(review) {
       if (token.length !== expected.length || !timingSafeEqual(Buffer.from(token), Buffer.from(expected))) return send(403, { error: 'Review capability required. Reopen the printed URL.' });
       if (request.method === 'GET' && url.pathname === `${route}/events`) {
         response.writeHead(200, { ...headers, 'Content-Type': 'application/x-ndjson; charset=utf-8' });
-        response.write(`${JSON.stringify({ type: 'ready', revision: review.state.revision, listeners })}\n`);
+        response.write(`${JSON.stringify({ type: 'ready', revision: review.state.revision, listeners, ...watchStatus })}\n`);
         clients.add(response);
         response.once('close', () => clients.delete(response));
         return;
       }
-      if (request.method === 'GET' && url.pathname === `${route}/state`) return send(200, review.view());
+      if (request.method === 'GET' && url.pathname === `${route}/state`) return send(200, { ...review.view(), ...watchStatus });
       const batchMatch = url.pathname.startsWith(`${route}/batch/`) && url.pathname.slice(`${route}/batch/`.length);
       if (request.method === 'GET' && batchMatch && /^[a-f0-9-]{36}$/.test(batchMatch)) return send(200, { markdown: feedbackMarkdown(feedback(review.state, batchMatch)) });
       if (request.method !== 'POST' || ![`${route}/refresh`, `${route}/action`].includes(url.pathname)) return send(404, { error: 'Unknown route.' });
@@ -69,7 +72,11 @@ export async function startServer(review) {
       }
       const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
       if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Expected a JSON object.');
-      return send(200, url.pathname.endsWith('/refresh') ? await review.refresh() : await review.mutate(input));
+      if (url.pathname.endsWith('/refresh')) {
+        const state = watcher ? await watcher.retry() : await review.refresh();
+        return send(200, { ...state, ...watchStatus });
+      }
+      return send(200, await review.mutate(input));
     } catch (error) {
       send(/conflict/i.test(error.message) ? 409 : 400, { error: error.message });
     }
@@ -81,10 +88,11 @@ export async function startServer(review) {
   origin = `http://127.0.0.1:${server.address().port}`;
   const url = `${origin}${route}#${capability}`;
   let control;
-  try { control = await startControl(review, url, count => { listeners = count; broadcast({ type: 'presence', listeners }); }); }
+  try { control = await startControl(review, url, count => { listeners = count; broadcast({ type: 'presence', listeners }); }, () => watcher ? watcher.retry() : review.refresh()); }
   catch (error) { unsubscribe(); server.closeAllConnections(); server.close(); throw error; }
+  if (options.watch !== false) watcher = await watchChange(review, event => { watchStatus = { automatic: event.automatic, watchError: event.error }; broadcast(event); });
   return { url, origin, route,
-    async close() { unsubscribe(); await control.close(); for (const client of clients) client.end(); clients.clear(); server.closeAllConnections(); await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await review.close(); } };
+    async close() { unsubscribe(); await watcher?.close(); await control.close(); for (const client of clients) client.end(); clients.clear(); server.closeAllConnections(); await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await review.close(); } };
 }
 
 export async function openBrowser(url, run = promisify(execFile), platform = process.platform) {

@@ -23,9 +23,9 @@ No registry release is published by these instructions. Automatic browser openin
 
 1. Read the selected change's native artifact list and rendered or exact source view.
 2. Select text, type in the popover and save a comment. Rendered selections show exact or enclosing-span precision; use Source for selections across spans or blocks.
-3. Submit a batch. Copy its retrieval command into the existing conversation, or copy/download its Markdown export.
+3. Submit a batch. An existing waiting conversation receives it; otherwise it stays queued. Copy its retrieval command or Markdown export for manual handoff.
 4. Have the existing agent read the explicit batch and revise Markdown within its existing authorization.
-5. Refresh source. Old comments become stale or orphaned; reattachment is explicit and preserves original anchors. Submitted batches remain unchanged.
+5. Source updates automatically after selected-change saves. Old comments become stale or orphaned; reattachment is explicit and preserves original anchors. Submitted batches remain unchanged.
 
 ```sh
 bun bin/spectater.js feedback --review REVIEW_ID --batch BATCH_ID --format markdown
@@ -35,7 +35,7 @@ Submission saves an immutable batch and returns it to an explicitly waiting CLI.
 
 ## Agent loop
 
-After opening, the existing conversation can wait with `spectater feedback --review REVIEW_ID --after 0 --wait 55 --format json`, revise and validate Markdown, then run `spectater refresh --review REVIEW_ID`. The active reader updates without a second writer. Preserve your config/state location. `spectater skill` prints the supplied on-demand skill, and `spectater workflow` prints current instructions. See [workflow usage](docs/workflow.md).
+After opening, the existing conversation can wait with `spectater feedback --review REVIEW_ID --after 0 --wait 55 --format json`, report `spectater reply --review REVIEW_ID --batch BATCH_ID --status working`, then revise and validate Markdown. Selected-change saves update the reader automatically. Post the result with `spectater reply --review REVIEW_ID --batch BATCH_ID --message-file result.txt` and return to waiting after the handled sequence. Receipts distinguish queued, received, working and replied; a reply does not resolve comments or grant approval. `spectater refresh --review REVIEW_ID` is the manual retry. Preserve your config/state location. `spectater skill` prints the supplied on-demand skill, and `spectater workflow` prints current instructions. See [workflow usage](docs/workflow.md).
 
 Implementation requirements, design and task completion are tracked in [the active OpenSpec change](openspec/changes/local-change-review/). This change remains unarchived until operator review; canonical capability specs are promoted through native OpenSpec archive rather than copied manually.
 

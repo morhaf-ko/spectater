@@ -6,6 +6,21 @@ Let an operator read one explicitly selected OpenSpec change while preserving na
 
 ## ADDED Requirements
 
+### Requirement: Selected-change automatic updates
+The system SHALL observe changes within only the explicitly selected change while its reader runs, coalesce filesystem events and refresh through native OpenSpec discovery. It MUST handle normal writes and atomic replacement, preserve unsaved comment text and scroll context, retain the last valid review on refresh failure and expose an actionable manual-refresh fallback. It MUST NOT scan sibling projects, follow escaping symlinks, continuously poll or treat a source update as addressed feedback.
+
+#### Scenario: Agent saves canonical Markdown
+- **WHEN** an artifact in the selected change is written or atomically replaced
+- **THEN** the browser receives the updated source automatically and old anchors are reconciled conservatively
+
+#### Scenario: Artifact structure changes
+- **WHEN** supported artifacts are added or removed under the selected change
+- **THEN** native discovery updates the manifest without a second parser or writer
+
+#### Scenario: Observation or refresh fails
+- **WHEN** filesystem observation is unsupported or an update is invalid
+- **THEN** saved feedback and the last valid source remain, with a visible error and explicit retry path
+
 ### Requirement: Minimal system-aware appearance
 The system SHALL default to the operating system color scheme and allow explicit light or dark appearance. It MUST preserve the current document, selection and draft when appearance changes. Secondary metadata and export controls SHALL use progressive disclosure while remaining accessible.
 

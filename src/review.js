@@ -10,6 +10,7 @@ export async function openReview(options, dependencies = {}) {
   let current = new Map();
   let rendered = new Map();
   let tail = Promise.resolve();
+  let fingerprint;
   const observers = new Set();
   const notify = event => {
     for (const observer of observers) {
@@ -22,6 +23,8 @@ export async function openReview(options, dependencies = {}) {
     if (next.reviewId !== review.reviewId) throw new Error('Planning identity changed. Reopen explicitly.');
     const documents = await Promise.all(next.documents.filter(d => d.supported).map(async d => [d.id, await readDocument(next, d)]));
     if (documents.reduce((n, [, s]) => n + Buffer.byteLength(s.source), 0) > 16 * 1024 * 1024) throw new Error('Selected documents exceed 16 MiB.');
+    const nextFingerprint = JSON.stringify([next.schemaName, next.source, next.artifacts, next.documents, documents.map(([id, snapshot]) => [id, snapshot.hash])]);
+    if (nextFingerprint === fingerprint) return;
     const state = store.state;
     for (const [, snapshot] of documents) state.snapshots[snapshot.hash] = snapshot;
     state.documentIds = next.documents.map(d => d.id);
@@ -29,6 +32,7 @@ export async function openReview(options, dependencies = {}) {
     state.revision++;
     await store.commit(state);
     const html = new Map(documents.map(([, snapshot]) => [snapshot.hash, rendered.get(snapshot.hash) ?? render(snapshot.source)]));
+    fingerprint = nextFingerprint;
     review = next; current = new Map(documents); rendered = html;
     notify({ type: 'refresh', revision: state.revision });
   }
@@ -39,6 +43,7 @@ export async function openReview(options, dependencies = {}) {
       documents: review.documents.map(({ file, canonical, ...d }) => ({ ...d, ...current.get(d.id), html: rendered.get(current.get(d.id)?.hash) })),
       comments: state.comments.filter(c => !c.deletedAt).map(c => ({ ...c, ...locate(c, current.get(c.documentId)) })),
       deletedComments: state.comments.filter(c => c.deletedAt).map(c => ({ ...c, ...locate(c, current.get(c.documentId)) })),
+      activity: state.activity || {},
       batches: state.batches.map(({ entries, ...batch }) => ({ ...batch, count: entries.length })),
       snapshots: Object.fromEntries(state.comments.map(c => [c.hash, state.snapshots[c.hash]])) };
   }
@@ -56,6 +61,28 @@ export async function openReview(options, dependencies = {}) {
     subscribe(observer) { observers.add(observer); return () => observers.delete(observer); },
     view,
     refresh: () => serial(async () => { await refresh(); return view(); }),
+    recordActivity: (batchId, input) => serial(async () => {
+      const state = store.state;
+      if (!state.batches.some(batch => batch.id === batchId)) throw new Error('Unknown feedback batch.');
+      if (!['received', 'working', 'done'].includes(input.status)) throw new Error('Activity status must be received, working or done.');
+      const body = input.body ?? '';
+      if (typeof body !== 'string' || body.length > 10000 || (input.status === 'done' && !body.trim())) throw new Error('A reply must contain 1–10,000 characters.');
+      state.activity ||= {};
+      const activity = state.activity[batchId] ||= { receivedAt: new Date().toISOString(), status: 'received', replies: [] };
+      const previous = JSON.stringify(activity);
+      if (input.status === 'working' && activity.status !== 'replied') {
+        activity.startedAt ||= new Date().toISOString(); activity.status = 'working';
+      }
+      if (input.status === 'done' && activity.replies.at(-1)?.body !== body.trim()) {
+        activity.replies.push({ id: randomUUID(), body: body.trim(), at: new Date().toISOString() });
+        activity.status = 'replied';
+      }
+      if (store.state.activity?.[batchId] && previous === JSON.stringify(activity)) return view();
+      state.revision++;
+      await store.commit(state);
+      notify({ type: 'activity', revision: state.revision });
+      return view();
+    }),
     mutate: input => serial(async () => {
       await checkRevision(input);
       const state = store.state;

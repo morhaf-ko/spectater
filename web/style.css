@@ -148,3 +148,6 @@ textarea::placeholder { color: var(--muted); }
 #undo { margin-left: var(--space-2); }
 #deleted-comments { margin-top: var(--space-4); font-size: var(--text-xs); color: var(--muted); }
 .deleted-comment { padding: var(--space-3) 0; border-top: 1px solid var(--border-soft); overflow-wrap: anywhere; }
+
+.agent-reply { border-left: 2px solid var(--border); padding-left: 12px; }
+.agent-reply p { white-space: pre-wrap; overflow-wrap: anywhere; }

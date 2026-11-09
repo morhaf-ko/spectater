@@ -37,6 +37,10 @@ try {
   const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
   const cursor = JSON.parse((await exec(process.execPath, [bin, 'feedback', '--review', state.reviewId, '--after', '0', '--wait', '0', '--format', 'json'], { env })).stdout);
   assert.equal(cursor.status, 'batch'); assert.equal(cursor.sequence, 1);
+  await exec(process.execPath, [bin, 'reply', '--review', state.reviewId, '--batch', state.batches[0].id, '--status', 'working'], { env });
+  const message = path.join(temp, 'reply.txt'); await writeFile(message, 'Packaged agent reply.');
+  await exec(process.execPath, [bin, 'reply', '--review', state.reviewId, '--batch', state.batches[0].id, '--message-file', message], { env });
+  assert.equal((await cli.request('state')).activity[state.batches[0].id].replies[0].body, 'Packaged agent reply.');
   const reused = await exec(process.execPath, [bin, 'open', '--project', f.project, '--change', 'example', '--no-open'], { env });
   assert.match(reused.stdout, /Reused active review/);
   const revised = `Package revision.\n\n${d.source}`;
@@ -44,5 +48,5 @@ try {
   const receipt = JSON.parse((await exec(process.execPath, [bin, 'refresh', '--review', state.reviewId], { env })).stdout);
   assert.equal(receipt.status, 'refreshed');
   assert.equal((await cli.request('state')).documents[0].source, revised);
-  console.log(`Package passed: ${listing.length} allowlisted files, temporary offline Bun install, installed skill/workflow/open/wait/retrieval/reuse/refresh; source changes limited to the explicit fixture revision.`);
+  console.log(`Package passed: ${listing.length} allowlisted files, temporary offline Bun install, installed skill/workflow/open/wait/retrieval/reply/reuse/refresh; source changes limited to the explicit fixture revision.`);
 } finally { await cli?.close(); await f.cleanup(); await rm(temp, { recursive: true, force: true }); }

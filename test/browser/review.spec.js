@@ -75,15 +75,24 @@ test('the existing CLI waits for submission and refreshes the active reader with
     const batch = JSON.parse((await waiting).stdout);
     expect(batch.status).toBe('batch'); expect(batch.sequence).toBe(1);
     expect(batch.entries[0].body).toBe('Feedback for the waiting conversation.');
-    await expect(page.locator('#listener-status')).toBeHidden();
+    await expect(page.locator('#listener-status')).toContainText('No agent waiting');
+    await expect(page.locator('#receipts')).toContainText('Received by agent CLI');
+    await run(['reply', '--review', review.state.reviewId, '--batch', batch.id, '--status', 'working']);
+    await expect(page.locator('#receipts')).toContainText('Agent working');
     await selectSource(page, 'exact'); await page.locator('#comment').fill('Keep this draft during the agent refresh.');
     await writeFile(f.file, `Agent revision.\n\n${sample}`);
-    const receipt = JSON.parse((await run(['refresh', '--review', review.state.reviewId])).stdout);
-    expect(receipt.status).toBe('refreshed');
+    // Source writes update the reader without an explicit refresh command.
     await expect(page.locator('#source')).toContainText('Agent revision.');
     await expect(page.locator('#comments')).toContainText('stale · open');
     await expect(page.locator('#comment')).toHaveValue('Keep this draft during the agent refresh.');
     await expect(page.getByRole('button', { name: 'Resume draft' })).toBeVisible();
+    await page.getByRole('button', { name: 'Resume draft' }).click();
+    await run(['reply', '--review', review.state.reviewId, '--batch', batch.id, '--message', '<script>Reply is plain text.</script>']);
+    await expect(page.locator('#receipts')).toContainText('Agent replied');
+    await expect(page.locator('#receipts')).toContainText('<script>Reply is plain text.</script>');
+    await expect(page.locator('#comment')).toBeFocused();
+    await expect(page.locator('#comment')).toHaveValue('Keep this draft during the agent refresh.');
+    expect(await page.locator('#receipts script').count()).toBe(0);
     const timeout = JSON.parse((await run(['feedback', '--review', review.state.reviewId, '--after', '1', '--wait', '0', '--format', 'json'])).stdout);
     expect(timeout.status).toBe('timeout');
     expect(new URL(page.url()).pathname).toBe(server.route);
@@ -95,7 +104,7 @@ test('read, select, comment, submit, CLI retrieve, revise, refresh and restart',
   let server;
   try {
     const review = await openReview(f.options, { directory: f.stateDir });
-    server = await startServer(review);
+    server = await startServer(review, { watch: false });
     const before = await readFile(f.file);
     await page.goto(server.url);
     await expect(page.locator('#message')).toContainText('Ready.');
@@ -107,6 +116,7 @@ test('read, select, comment, submit, CLI retrieve, revise, refresh and restart',
     await expect(page.locator('#comments')).toContainText('current · open');
     await page.getByRole('button', { name: 'Submit batch', exact: true }).click();
     await expect(page.locator('#message')).toContainText('Batch saved.');
+    await expect(page.locator('#receipts')).toContainText('Saved · queued for agent');
     const batchId = review.state.batches[0].id;
     const cli = await promisify(execFile)(process.execPath, ['bin/spectater.js', 'feedback', '--review', review.state.reviewId, '--batch', batchId], { env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile } });
     expect(cli.stdout).toContain('Explain the exactness contract.');

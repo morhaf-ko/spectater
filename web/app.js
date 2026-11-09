@@ -6,7 +6,7 @@ history.replaceState(null, '', route);
 let state, selectedId, selection, mode = 'rendered', busy = false;
 let editingId, anchorRect, undoDeletedId, draftReady = false;
 const draftKey = `${route}:draft`;
-let streamActive = false, streamStarting = false;
+let streamActive = false, streamStarting = false, listeners = 0;
 function acceptState(next) { if (!state || next.revision >= state.revision) state = next; }
 
 async function watchReview() {
@@ -27,18 +27,24 @@ async function watchReview() {
       while ((end = pending.indexOf('\n')) >= 0) {
         const event = JSON.parse(pending.slice(0, end)); pending = pending.slice(end + 1);
         if (event.listeners !== undefined) {
-          $('listener-status').hidden = !event.listeners;
-          $('listener-status').textContent = event.listeners ? 'Feedback listener waiting' : '';
+          listeners = event.listeners;
+          displayPresence();
         }
-        if ((event.type === 'refresh' || event.type === 'ready') && event.revision > state.revision) {
+        if (event.type === 'watch' || event.type === 'ready') {
+          $('source-status').textContent = event.error || (event.automatic ? 'Source updates automatically' : 'Refresh source manually');
+        }
+        if (['refresh', 'activity', 'ready'].includes(event.type) && event.revision > state.revision) {
+          const before = JSON.stringify([state.documents.map(d => [d.id, d.hash]), state.artifacts]);
           const scroll = { x: scrollX, y: scrollY };
-          acceptState(await api('state')); display(); window.scrollTo(scroll.x, scroll.y);
-          announce('Plan refreshed. Draft text kept.');
+          acceptState(await api('state'));
+          if (before !== JSON.stringify([state.documents.map(d => [d.id, d.hash]), state.artifacts])) {
+            display(); window.scrollTo(scroll.x, scroll.y); announce('Plan refreshed. Draft text kept.');
+          } else displayFeedback();
         }
       }
     }
     throw new Error('Live updates disconnected. Use Refresh source to reconnect.');
-  } catch (error) { announce(error.message, true); }
+  } catch (error) { listeners = 0; displayPresence(); $('source-status').textContent = 'Live connection unavailable. Refresh source to reconnect.'; announce(error.message, true); }
   finally { streamActive = false; streamStarting = false; }
 }
 
@@ -119,6 +125,9 @@ function displayDocument() {
   $('source-mode').setAttribute('aria-pressed', String(mode === 'source'));
   $('rendered-mode').setAttribute('aria-pressed', String(mode === 'rendered'));
 }
+function displayPresence() {
+  $('listener-status').textContent = listeners ? 'Feedback listener waiting' : 'No agent waiting · submissions stay saved';
+}
 function display() {
   $('change').textContent = state.change;
   $('identity').textContent = `${state.schemaName} · ${state.source}`;
@@ -139,6 +148,10 @@ function display() {
   }
   if (!state.documents.length) $('artifacts').append(element('p', 'No existing artifacts.', 'note'));
   displayDocument();
+  displayFeedback();
+}
+function displayFeedback() {
+  displayPresence();
   $('comments').replaceChildren();
   for (const c of state.comments) {
     const section = element('section', '', 'comment');
@@ -167,6 +180,13 @@ function display() {
   for (const batch of [...state.batches].reverse()) {
     const receipt = element('div', '', 'receipt');
     receipt.append(button(`Batch ${batch.sequence} · ${batch.count} comments`, () => showBatch(batch.id)));
+    const activity = state.activity?.[batch.id];
+    receipt.append(element('p', activity?.status === 'replied' ? 'Agent replied' : activity?.status === 'working' ? 'Agent working' : activity ? 'Received by agent CLI' : 'Saved · queued for agent', 'note'));
+    for (const reply of activity?.replies || []) {
+      const response = element('div', '', 'agent-reply');
+      response.append(element('p', reply.body), element('time', new Date(reply.at).toLocaleString(), 'note'));
+      receipt.append(response);
+    }
     $('receipts').append(receipt);
   }
 }
@@ -242,4 +262,4 @@ $('download').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([$ ('export').value], { type: 'text/markdown' }));
   const link = document.createElement('a'); link.href = url; link.download = 'spectater-feedback.md'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-operation(async () => { state = await api('state'); mode = state.defaultView; display(); restoreDraft(); announce('Ready.'); void watchReview(); });
+operation(async () => { state = await api('state'); mode = state.defaultView; display(); $('source-status').textContent = state.watchError || (state.automatic ? 'Source updates automatically' : 'Refresh source manually'); restoreDraft(); announce('Ready.'); void watchReview(); });
