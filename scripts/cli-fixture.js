@@ -1,58 +1,35 @@
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { listServers } from '../src/agent.js';
+import { alive } from '../src/storage.js';
 
-export async function launchFixture(bin, f, { noOpen = true, reopen = false, env = {} } = {}) {
-  const child = spawn(
-    process.execPath,
-    [
-      bin,
-      'open',
-      '--project',
-      f.project,
-      '--change',
-      'example',
-      ...(noOpen ? ['--no-open'] : []),
-      ...(reopen ? ['--reopen'] : []),
-    ],
-    {
+/** Runs the CLI against a test fixture's project, state directory and config. */
+export function cli(bin, f, env = {}) {
+  const entry = path.resolve(bin);
+  return (args, options = {}) =>
+    promisify(execFile)(process.execPath, [entry, ...args], {
+      cwd: f.project,
       env: {
         ...process.env,
         SPECTATER_STATE_DIR: f.stateDir,
         SPECTATER_CONFIG: f.configFile,
         ...env,
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
+      timeout: 60000,
+      ...options,
+    });
+}
+
+/** Starts a detached review server for the fixture's `example` change. */
+export async function launchFixture(bin, f, { reopen = false, env = {} } = {}) {
+  const run = cli(bin, f, env);
+  const opened = JSON.parse(
+    (await run(['open', 'example', '--no-open', ...(reopen ? ['--reopen'] : [])])).stdout,
   );
-  let output = '',
-    errors = '';
-  child.stderr.on('data', (chunk) => {
-    errors += chunk;
-  });
-  const ready = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill('SIGTERM');
-      reject(new Error('Fixture CLI readiness timed out.'));
-    }, 20000);
-    child.stdout.on('data', (chunk) => {
-      output += chunk;
-      const match = output.match(/Ready: (http:\/\/[^\n]+)/);
-      if (match) {
-        clearTimeout(timer);
-        resolve(match[1]);
-      }
-    });
-    child.once('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.once('exit', (code) => {
-      clearTimeout(timer);
-      reject(new Error(`Fixture exited ${code}: ${errors}`));
-    });
-  });
-  const url = new URL(await ready);
+  const url = new URL(opened.url);
   const route = `${url.origin}${url.pathname}`;
+  const [record] = (await listServers(f.stateDir)).filter((item) => item.url === opened.url);
   const request = async (endpoint, input) => {
     const response = await fetch(`${route}/${endpoint}`, {
       method: input ? 'POST' : 'GET',
@@ -68,19 +45,17 @@ export async function launchFixture(bin, f, { noOpen = true, reopen = false, env
     return data;
   };
   return {
-    child,
+    opened,
     url: url.href,
+    pid: record.pid,
     request,
-    get errors() {
-      return errors;
-    },
+    run,
     async close() {
-      if (child.exitCode === null) {
-        const exit = once(child, 'exit');
-        child.kill('SIGTERM');
-        await exit;
-      }
-      if (child.exitCode !== 0) throw new Error(`Fixture shutdown failed: ${errors}`);
+      if (!alive(record.pid)) return;
+      await run(['stop', 'example']);
+      for (let i = 0; i < 100 && alive(record.pid); i++)
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      if (alive(record.pid)) throw new Error('Fixture server did not stop.');
     },
   };
 }

@@ -1,30 +1,24 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { parseArgs } from 'node:util';
+import { listServers } from '../src/agent.js';
 import { loadState } from '../src/storage.js';
 import { fixture } from '../test/helpers.js';
 import { launchFixture } from './cli-fixture.js';
 
-const { values } = parseArgs({
-  options: { fixture: { type: 'string' }, 'no-open': { type: 'boolean' } },
-});
-assert.equal(values.fixture, 'local-review');
-assert.equal(values['no-open'], true);
 const f = await fixture();
-let cli;
+let server;
 try {
   const before = await readFile(f.file);
-  cli = await launchFixture('bin/spectater.js', f);
-  const state = await cli.request('state');
+  server = await launchFixture('bin/spectater.js', f);
+  const state = await server.request('state');
   assert.equal(state.documents[0].source, before.toString());
-  await cli.close();
-  cli = null;
+  await server.close();
+  server = null;
+  assert.deepEqual(await listServers(f.stateDir), []);
   assert.ok(await loadState(f.stateDir, state.reviewId));
   assert.deepEqual(await readFile(f.file), before);
-  console.log(
-    'Smoke passed: CLI readiness, manifest, private state, SIGTERM shutdown and canonical-byte preservation. Browser acceptance is a separate gate.',
-  );
+  console.log('Smoke passed: detached start, manifest, private state, stop and unchanged source.');
 } finally {
-  await cli?.close();
+  await server?.close();
   await f.cleanup();
 }

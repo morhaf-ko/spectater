@@ -47,10 +47,10 @@ export async function discover({ project, change, store }, run = native) {
   if (!project || !change || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(change))
     throw new Error('Supply --project and a valid --change id.');
   const cwd = await realpath(project);
-  if (!['1.15.0', '1.16.1'].includes((await run(['--version'], cwd)).trim()))
-    throw new Error(
-      'Verified OpenSpec contracts: 1.15.0 and 1.16.1. Install a verified version explicitly.',
-    );
+  const version = (await run(['--version'], cwd)).trim();
+  const [major, minor] = version.split('.').map(Number);
+  if (!/^\d+\.\d+\.\d+/.test(version) || major < 1 || (major === 1 && minor < 15))
+    throw new Error(`OpenSpec ${version} is not supported. Install OpenSpec 1.15.0 or newer.`);
   const selector = store ? ['--store', store] : [];
   const json = async (args) => {
     try {

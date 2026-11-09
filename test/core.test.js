@@ -46,8 +46,12 @@ test('discovery fails closed for missing CLI/change, unsupported version/JSON an
     /ENOENT/,
   );
   await assert.rejects(
-    discover(f.options, async () => '2.0.0'),
-    /1.15.0/,
+    discover(f.options, async () => '1.14.2'),
+    /1.15.0 or newer/,
+  );
+  await assert.rejects(
+    discover(f.options, async (args) => (args[0] === '--version' ? '2.3.0' : 'oops')),
+    /JSON/,
   );
   await assert.rejects(
     discover(f.options, async (args) => (args[0] === '--version' ? '1.15.0' : 'oops')),
@@ -320,7 +324,7 @@ test('comment edits and recoverable deletion survive restart without changing su
   await mutate({ action: 'delete', id });
   assert.equal(review.view().comments.length, 0);
   assert.equal(review.view().deletedComments.length, 1);
-  await assert.rejects(mutate({ action: 'submit' }), /Add an open/);
+  await assert.rejects(mutate({ action: 'submit' }), /open comment that is new/);
   await assert.rejects(mutate({ action: 'edit', id, body: 'No' }), /Restore/);
   assert.equal(feedbackMarkdown(feedback(review.state, batchId)), original);
   await review.close();
@@ -418,5 +422,7 @@ test('browser opener uses exact argument and reports failure without shell execu
     ),
     /forced/,
   );
-  await assert.rejects(openBrowser('http://example', undefined, 'linux'), /printed URL/);
+  await openBrowser('http://x', async (...args) => calls.push(args), 'linux');
+  assert.equal(calls.at(-1)[0], 'xdg-open');
+  await assert.rejects(openBrowser('http://example', undefined, 'win32'), /macOS and Linux/);
 });

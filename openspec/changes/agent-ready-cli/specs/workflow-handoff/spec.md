@@ -134,7 +134,7 @@ The system SHALL open the review URL in the default browser after the server is 
 
 ### Requirement: Explicit feedback retrieval
 
-The system SHALL let the reviewer copy or download a batch and let the agent read a numbered batch of a change as JSON or Markdown, with an archive mode that records no delivery. Exports MUST contain relative source paths and revision hashes without absolute workstation paths.
+The system SHALL let the reviewer copy or download a batch and let the agent read a numbered batch of a change as JSON or Markdown from saved state, without recording delivery and without a running server. Exports MUST contain relative source paths and revision hashes without absolute workstation paths.
 
 #### Scenario: Copy unavailable
 

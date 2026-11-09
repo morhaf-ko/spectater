@@ -30,9 +30,14 @@ The system SHALL offer one action that submits pending feedback and ends the rev
 
 ### Requirement: Keyboard shortcuts
 
-The system SHALL support keyboard submission in the comment and message composers: Enter saves, Shift+Enter inserts a newline, Cmd+Enter (Ctrl+Enter off macOS) saves and submits all pending feedback, and Escape closes an empty composer. Escape MUST NOT discard unsaved text.
+The system SHALL support keyboard submission: in the comment composer Enter saves, Shift+Enter inserts a newline and Cmd+Enter (Ctrl+Enter off macOS) saves and submits all pending feedback; in the message composer Enter submits and Shift+Enter inserts a newline. Escape closes the comment composer and MUST NOT discard unsaved text.
+
+#### Scenario: Save and submit with one shortcut
+
+- **WHEN** the reviewer presses Cmd+Enter in the comment composer
+- **THEN** the comment is saved and a batch containing it is submitted
 
 #### Scenario: Escape with text
 
-- **WHEN** the composer contains unsaved text and the reviewer presses Escape
-- **THEN** the composer stays open with its text unchanged
+- **WHEN** the comment composer contains unsaved text and the reviewer presses Escape
+- **THEN** the composer closes, the text is kept and Resume draft reopens it

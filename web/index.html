@@ -98,7 +98,20 @@
         </details>
         <div class="submission">
           <p id="queue-editing" class="note" hidden></p>
-          <button id="submit" type="button" hidden>Submit batch</button>
+          <label for="agent-message">Message to agent</label>
+          <textarea
+            id="agent-message"
+            rows="2"
+            maxlength="10000"
+            placeholder="Optional. Enter sends; Shift+Enter adds a line."
+          ></textarea>
+          <div class="submit-actions">
+            <button id="submit" type="button" disabled>Submit batch</button
+            ><button id="send-end" type="button">Send &amp; End</button>
+          </div>
+          <p id="end-pending" class="note" hidden>
+            Ending after the agent receives the final batch.
+          </p>
           <div id="receipts"></div>
           <button id="review-lifecycle" type="button">End review</button>
           <details id="export-details" hidden>
@@ -135,7 +148,7 @@
           rows="3"
           maxlength="10000"
           required
-          placeholder="Add a comment…"
+          placeholder="Add a comment… Enter saves; Cmd/Ctrl+Enter saves and submits."
         ></textarea>
         <button id="save" type="submit" disabled>Save comment</button>
       </form>

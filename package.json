@@ -1,11 +1,21 @@
 {
   "name": "spectater",
   "version": "0.1.0",
-  "description": "Local selected-text review for canonical OpenSpec changes",
+  "description": "Review OpenSpec changes in your browser and send selected-text feedback to your coding agent",
+  "keywords": [
+    "openspec",
+    "review",
+    "coding-agent",
+    "claude-code",
+    "codex",
+    "spec-driven-development",
+    "markdown"
+  ],
+  "homepage": "https://github.com/morhaf-ko/spectater#readme",
   "license": "MIT",
   "type": "module",
   "engines": {
-    "bun": ">=1.4.4 <1.5"
+    "node": ">=22.12"
   },
   "packageManager": "bun@1.4.4",
   "bin": {
@@ -15,21 +25,19 @@
     "bin/",
     "src/",
     "web/",
-    "docs/",
-    "integration/",
+    "skills/",
     "README.md",
-    "LICENSE",
-    "SECURITY.md"
+    "LICENSE"
   ],
   "scripts": {
     "test": "bun test --timeout 30000 test/*.test.js",
     "test:browser": "bun --bun node_modules/@playwright/test/cli.js test",
     "test:package": "bun scripts/package-test.js",
-    "smoke": "bun scripts/smoke.js",
+    "smoke": "node scripts/smoke.js",
     "benchmark": "bun scripts/benchmark.js",
     "lint": "biome ci .",
     "spec:check": "OPENSPEC_TELEMETRY=0 openspec validate --all --strict --no-interactive",
-    "check": "bun run lint && bun run test && bun run test:browser && bun run test:package && bun run smoke -- --fixture local-review --no-open && bun run spec:check && git diff --check && bun audit",
+    "check": "bun run lint && bun run test && bun run test:browser && bun run test:package && bun run smoke && bun run spec:check && git diff --check && bun audit",
     "format": "biome check --write ."
   },
   "dependencies": {

@@ -23,31 +23,36 @@ spectater wait add-dark-mode          # repeat until status is "ended"
 | `stopped`         | The server stopped                   | Ask before running `open` again                        | 3         |
 | `listener_active` | Another `wait` holds the review      | Use `--takeover` only if that listener is gone         | 4         |
 
-The default `--timeout` is 540 seconds, below the 10-minute ceiling of agent shell tools. Errors print `{"status":"error","error":"..."}` and exit 1. `--format markdown` remains for humans.
+`listener_replaced` (exit 5) is returned to a listener displaced by `--takeover`. The default `--timeout` is 540 seconds, below the 10-minute ceiling of agent shell tools; the maximum is one hour. Errors print `{"status":"error","error":"..."}` and exit 1. `--format markdown` remains for humans.
 
 ## Server-tracked delivery
 
-The review state already records a claim per batch. `wait` delivers the oldest queued batch whose sequence is above the last claimed one, so a repeated `wait` after a crash returns the same claimed-but-unreplied batch until the agent replies. The `--after` cursor and the offline state-file fallbacks are removed. `feedback <change> --batch <n> --history` keeps archive reads.
+`wait` delivers the oldest deliverable batch the agent has not replied to. Delivery claims the batch and records receipt in one durable write, so a repeated `wait` after a crash returns the same batch until the agent replies. `reply` without `--batch` targets that batch. The `--after` cursor, per-batch live claims and the offline state-file fallbacks are removed. `feedback <change> --batch <n>` reads any batch from saved state without recording delivery.
+
+A wait response sends its headers immediately and a space every 15 seconds until the JSON result, so idle-connection timeouts in either runtime never cut a long wait. JSON parsers ignore the leading whitespace.
 
 ## Detached server
 
-`open` spawns `spectater serve <change>` detached, waits for its ready line, and exits. The server writes `<state>/<reviewId>.server.json` (mode 0600) with port, PID and a random agent token. CLI commands call `http://127.0.0.1:<port>/agent/...` with that token. Browser routes keep their own capability token. One process still owns one review and its writer lock.
+`open` spawns `spectater serve <change>` detached with output to `<state>/<reviewId>.log`, waits for its server record, and exits. The server writes `<state>/<reviewId>.server.json` (mode 0600) with PID, URL, change and root. CLI commands call `POST /agent/<operation>` on that URL with the URL's capability token, the same token the browser uses. One process still owns one review and its writer lock. A writer lock or server record whose PID no longer exists is reclaimed, so a crashed server does not block the next open.
+
+Commands find a running server by change name and project root without native discovery; with `--store`, or when no server matches, native discovery derives the identity.
 
 The server exits after 30 minutes with no browser stream and no listener (`SPECTATER_IDLE_TIMEOUT`, `0` disables), and on `spectater stop`. A stale server file whose PID is gone is replaced.
 
 ## Runtime
 
-Shebang `#!/usr/bin/env node`, `engines.node >=22`. The code already uses only `node:` modules. Contract tests stay on `bun test`; CI additionally runs the package test and smoke under Node 22.
+Shebang `#!/usr/bin/env node`, `engines.node >=22.12` (OpenSpec's own floor). The code uses only `node:` modules. Contract and browser tests stay on Bun; the package test installs the tarball with npm and runs it under Node, the smoke test runs under Node, and CI uses Node 22.
 
 ## Distribution and hooks
 
-`skills/spectater/SKILL.md` is a short stub that tells the agent to run `npx -y spectater workflow`. `spectater setup hooks` writes one SessionStart entry per detected agent config that runs `spectater status --hook`, which prints open reviews for the current project and nothing otherwise. It is idempotent, reports each agent separately, and `spectater setup hooks --remove` undoes it. No hook blocks, wakes or drives the agent.
+`skills/spectater/SKILL.md` is a short stub that tells the agent to run `npx -y spectater workflow`. `spectater setup hooks` writes a SessionStart hook for Claude Code (`~/.claude/settings.json`) and Codex (`~/.codex/hooks.json`, plus `features.hooks = true` in `config.toml`), an OpenCode plugin (`~/.config/opencode/plugins/spectater.js`) and a Copilot CLI hook (`~/.copilot/hooks/spectater.json`, whose command prints `additionalContext` JSON). Each runs `spectater status --hook`, which prints open reviews for the current project and nothing otherwise. Setup is idempotent, keeps unrelated hooks, refuses to replace an unmanaged OpenCode plugin, reports each agent separately, and `--remove` undoes it. No hook blocks, wakes or drives the agent.
 
 ## Code structure
 
-- `bin/spectater.js`: argument parsing and a command table only.
-- `src/commands/*.js`: one module per command.
-- `src/review.js`: `mutate` becomes a table of action handlers.
+- `bin/spectater.js`: argument parsing and a table of command handlers.
+- `src/agent.js`: server records, change-name lookup, detached start and the agent HTTP client.
+- `src/hooks.js`: hook setup and removal.
+- `src/review.js`: `mutate` is a table of action handlers; `deliver` replaces per-batch claims.
 - `src/control.js` (Unix socket) is removed; agent routes join `src/server.js`.
 - The unreachable Windows path in `stateDirectory()` is removed.
 

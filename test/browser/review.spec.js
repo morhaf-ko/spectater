@@ -1,12 +1,23 @@
-import { execFile } from 'node:child_process';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { expect, test } from '@playwright/test';
-import { launchFixture } from '../../scripts/cli-fixture.js';
+import { cli } from '../../scripts/cli-fixture.js';
+import { listServers, writeServer } from '../../src/agent.js';
 import { openReview } from '../../src/review.js';
 import { startServer } from '../../src/server.js';
 import { fixture, sample } from '../helpers.js';
+
+// Registers an in-process server so CLI commands can address it by change name.
+async function register(f, review, server) {
+  await writeServer(f.stateDir, {
+    reviewId: review.state.reviewId,
+    pid: process.pid,
+    url: server.url,
+    change: 'example',
+    root: f.project,
+  });
+  return cli('bin/spectater.js', f);
+}
 
 async function setTheme(page, value) {
   if (value === 'system') {
@@ -94,41 +105,22 @@ test('the existing CLI waits for submission and refreshes the active reader with
     await page.goto(server.url);
     await expect(page.locator('#message')).toContainText('Ready.');
     await stream;
-    const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
-    const run = (args) =>
-      promisify(execFile)(process.execPath, ['bin/spectater.js', ...args], { env, timeout: 15000 });
-    const waiting = run([
-      'feedback',
-      '--review',
-      review.state.reviewId,
-      '--after',
-      '0',
-      '--wait',
-      '10',
-      '--format',
-      'json',
-    ]);
+    const run = await register(f, review, server);
+    const waiting = run(['wait', 'example', '--timeout', '10']);
     await expect(page.locator('#listener-status')).toHaveText('Feedback listener waiting');
     await selectSource(page, 'exact sentence');
     await page.locator('#comment').fill('Feedback for the waiting conversation.');
     await page.locator('#save').click();
     await page.locator('#submit').click();
     await expect(page.locator('#message')).toContainText('Batch saved.');
-    const batch = JSON.parse((await waiting).stdout);
-    expect(batch.status).toBe('batch');
+    const result = JSON.parse((await waiting).stdout);
+    expect(result.status).toBe('batch');
+    const { batch } = result;
     expect(batch.sequence).toBe(1);
     expect(batch.entries[0].body).toBe('Feedback for the waiting conversation.');
     await expect(page.locator('#listener-status')).toContainText('No agent waiting');
     await expect(page.locator('#receipts')).toContainText('Received by agent CLI');
-    await run([
-      'reply',
-      '--review',
-      review.state.reviewId,
-      '--batch',
-      batch.id,
-      '--status',
-      'working',
-    ]);
+    await run(['reply', 'example', '--status', 'working']);
     await expect(page.locator('#receipts')).toContainText('Agent working');
     await selectSource(page, 'exact');
     await page.locator('#comment').fill('Keep this draft during the agent refresh.');
@@ -139,35 +131,13 @@ test('the existing CLI waits for submission and refreshes the active reader with
     await expect(page.locator('#comment')).toHaveValue('Keep this draft during the agent refresh.');
     await expect(page.getByRole('button', { name: 'Resume draft' })).toBeVisible();
     await page.getByRole('button', { name: 'Resume draft' }).click();
-    await run([
-      'reply',
-      '--review',
-      review.state.reviewId,
-      '--batch',
-      batch.id,
-      '--message',
-      '<script>Reply is plain text.</script>',
-    ]);
+    await run(['reply', 'example', '--message', '<script>Reply is plain text.</script>']);
     await expect(page.locator('#receipts')).toContainText('Agent replied');
     await expect(page.locator('#receipts')).toContainText('<script>Reply is plain text.</script>');
     await expect(page.locator('#comment')).toBeFocused();
     await expect(page.locator('#comment')).toHaveValue('Keep this draft during the agent refresh.');
     expect(await page.locator('#receipts script').count()).toBe(0);
-    const timeout = JSON.parse(
-      (
-        await run([
-          'feedback',
-          '--review',
-          review.state.reviewId,
-          '--after',
-          '1',
-          '--wait',
-          '0',
-          '--format',
-          'json',
-        ])
-      ).stdout,
-    );
+    const timeout = JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout);
     expect(timeout.status).toBe('timeout');
     expect(new URL(page.url()).pathname).toBe(server.route);
   } finally {
@@ -197,14 +167,12 @@ test('read, select, comment, submit, CLI retrieve, revise, refresh and restart',
     await page.getByRole('button', { name: 'Submit batch', exact: true }).click();
     await expect(page.locator('#message')).toContainText('Batch saved.');
     await expect(page.locator('#receipts')).toContainText('Saved · queued for agent');
-    const batchId = review.state.batches[0].id;
-    const cli = await promisify(execFile)(
-      process.execPath,
-      ['bin/spectater.js', 'feedback', '--review', review.state.reviewId, '--batch', batchId],
-      { env: { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile } },
-    );
-    expect(cli.stdout).toContain('Explain the exactness contract.');
-    expect(cli.stdout).toBe(await page.locator('#export').inputValue());
+    const exported = await cli(
+      'bin/spectater.js',
+      f,
+    )(['feedback', 'example', '--batch', '1', '--format', 'markdown']);
+    expect(exported.stdout).toContain('Explain the exactness contract.');
+    expect(exported.stdout).toBe(await page.locator('#export').inputValue());
     expect(await readFile(f.file)).toEqual(before);
     await selectSource(page, 'exact');
     await page.getByLabel('Comment on selected text').fill('Keep this unsaved draft.');
@@ -224,8 +192,8 @@ test('read, select, comment, submit, CLI retrieve, revise, refresh and restart',
     server = await startServer(restarted);
     await page.goto(server.url);
     await expect(page.locator('#comments')).toContainText('Explain the exactness contract.');
-    await page.getByRole('button', { name: 'Batch 1 · 1 comments' }).click();
-    await expect(page.locator('#export')).toHaveValue(cli.stdout);
+    await page.getByRole('button', { name: 'Batch 1 · 1 items' }).click();
+    await expect(page.locator('#export')).toHaveValue(exported.stdout);
     console.log(
       `Browser vertical slice: ${browser.version()}; canonical writes limited to two explicit fixture revisions.`,
     );
@@ -455,36 +423,67 @@ test('CLI config and no-open defaults survive a forced macOS opener failure', as
   const tools = path.join(f.directory, 'tools');
   await mkdir(tools);
   const marker = path.join(f.directory, 'opener-called');
-  await writeFile(
-    path.join(tools, 'open'),
-    '#!/usr/bin/env bun\nawait Bun.write(process.env.SPECTATER_OPENER_MARKER, "called");\nprocess.exit(1);\n',
-    { mode: 0o700 },
-  );
-  const env = { PATH: `${tools}:${process.env.PATH}`, SPECTATER_OPENER_MARKER: marker };
-  let cli;
+  await writeFile(path.join(tools, 'open'), `#!/bin/sh\necho called > "${marker}"\nexit 1\n`, {
+    mode: 0o700,
+  });
+  const run = cli('bin/spectater.js', f, { PATH: `${tools}:${process.env.PATH}` });
   try {
     await writeFile(f.configFile, '{"defaultView":"source","openBrowser":false}');
-    cli = await launchFixture('bin/spectater.js', f, { noOpen: false, env });
-    await page.goto(cli.url);
-    await expect(page.locator('#source')).toBeVisible();
-    expect(cli.errors).toBe('');
+    const quiet = await run(['open', 'example']);
+    expect(quiet.stderr).toBe('');
     await expect(access(marker)).rejects.toThrow();
-    await cli.close();
-    cli = null;
+    await page.goto(JSON.parse(quiet.stdout).url);
+    await expect(page.locator('#source')).toBeVisible();
     await writeFile(f.configFile, '{}');
-    cli = await launchFixture('bin/spectater.js', f, { noOpen: false, env });
-    await expect.poll(() => cli.errors).toContain('Browser opening failed');
-    await page.goto(cli.url);
-    await expect(page.locator('#message')).toContainText('Ready.');
-    expect(await readFile(marker, 'utf8')).toBe('called');
-    await cli.close();
-    cli = null;
-    cli = await launchFixture('bin/spectater.js', f, { noOpen: true, env });
-    await page.goto(cli.url);
-    await expect(page.locator('#message')).toContainText('Ready.');
-    expect(cli.errors).toBe('');
+    const failed = await run(['open', 'example']);
+    expect(failed.stderr).toContain('Browser opening failed');
+    expect(JSON.parse(failed.stdout).opened).toBe(false);
+    expect(await readFile(marker, 'utf8')).toBe('called\n');
+    expect((await run(['open', 'example', '--no-open'])).stderr).toBe('');
   } finally {
-    await cli?.close();
+    await run(['stop', 'example']).catch(() => {});
+    while ((await listServers(f.stateDir)).length) await new Promise((r) => setTimeout(r, 50));
+    await f.cleanup();
+  }
+});
+
+test('message composer, keyboard shortcuts and Send & End reach a waiting agent', async ({
+  page,
+}) => {
+  const f = await fixture();
+  let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir });
+    server = await startServer(review);
+    await page.goto(server.url);
+    await expect(page.locator('#message')).toContainText('Ready.');
+    const run = await register(f, review, server);
+    await page.locator('#agent-message').fill('A general note.');
+    await page.locator('#agent-message').press('Enter');
+    await expect(page.locator('#message')).toContainText('Batch saved.');
+    await expect(page.locator('#agent-message')).toHaveValue('');
+    const first = JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).batch;
+    expect(first.message).toBe('A general note.');
+    await run(['reply', 'example', '--message', 'Noted.']);
+    await selectSource(page, 'exact');
+    await page.locator('#comment').fill('Saved and sent with one shortcut.');
+    await page.locator('#comment').press('Shift+Enter');
+    await page.locator('#comment').press('ControlOrMeta+Enter');
+    await expect(page.locator('#receipts')).toContainText('Batch 2');
+    expect(review.state.batches[1].entries[0].body).toBe('Saved and sent with one shortcut.');
+    const second = JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).batch;
+    await run(['reply', 'example', '--batch', String(second.sequence), '--message', 'Done.']);
+    await page.locator('#agent-message').fill('Last note before ending.');
+    await page.getByRole('button', { name: 'Send & End', exact: true }).click();
+    await expect(page.locator('#end-pending')).toBeVisible();
+    const final = JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout);
+    expect(final.batch.message).toBe('Last note before ending.');
+    await expect(page.locator('#listener-status')).toContainText('Review ended');
+    expect(JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).status).toBe(
+      'ended',
+    );
+  } finally {
+    await server?.close();
     await f.cleanup();
   }
 });
@@ -550,7 +549,7 @@ test('selection popover supports immediate typing, cached drafts, editing, delet
     await page.locator('#deleted-comments > summary').click();
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.locator('#comments')).toContainText('Edited feedback.');
-    await page.getByRole('button', { name: 'Batch 1 · 1 comments' }).click();
+    await page.getByRole('button', { name: 'Batch 1 · 1 items' }).click();
     await expect(page.locator('#export')).toHaveValue(exported);
     expect(await readFile(f.file, 'utf8')).toBe(sample);
   } finally {
@@ -663,7 +662,7 @@ test('queued submissions can be paused, replaced and cancelled; corrections send
     await expect(page.locator('#message')).toContainText('Batch saved.');
     await expect(page.locator('#export-details')).not.toHaveAttribute('open', '');
     await expect(page.locator('#copy')).not.toBeVisible();
-    await expect(page.locator('#submit')).toBeHidden();
+    await expect(page.locator('#submit')).toBeDisabled();
     await page.getByRole('button', { name: 'Edit queued batch 1', exact: true }).click();
     await expect(page.locator('#queue-editing')).toContainText('delivery paused');
     await page.locator('#comments').getByRole('button', { name: 'Edit', exact: true }).click();
@@ -679,24 +678,9 @@ test('queued submissions can be paused, replaced and cancelled; corrections send
     await expect(page.locator('#comments')).toContainText('Corrected before delivery.');
     await page.locator('#submit').click();
     await expect(page.locator('#receipts')).toContainText('Batch 3');
-    const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
-    const result = await promisify(execFile)(
-      process.execPath,
-      [
-        'bin/spectater.js',
-        'feedback',
-        '--review',
-        review.state.reviewId,
-        '--after',
-        '0',
-        '--wait',
-        '0',
-        '--format',
-        'json',
-      ],
-      { env },
-    );
-    expect(JSON.parse(result.stdout).sequence).toBe(3);
+    const run = await register(f, review, server);
+    const result = await run(['wait', 'example', '--timeout', '0']);
+    expect(JSON.parse(result.stdout).batch.sequence).toBe(3);
     await expect(page.locator('#receipts')).toContainText('Received by agent CLI');
     await expect(page.getByRole('button', { name: 'Cancel batch 3', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Send correction', exact: true }).click();

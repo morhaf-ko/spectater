@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
 import { access, mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
-import { promisify } from 'node:util';
-import { launchFixture } from '../scripts/cli-fixture.js';
+import { agentRequest } from '../src/agent.js';
 import { compareSources } from '../src/changes.js';
-import { controlRequest, startControl } from '../src/control.js';
 import { openReview } from '../src/review.js';
+import { startServer } from '../src/server.js';
 import { fixture, sample } from './helpers.js';
 
 async function comment(review) {
@@ -29,10 +27,10 @@ async function comment(review) {
 test('ending preserves feedback, refuses queued abandonment and ends listeners until explicit resume', async (t) => {
   const f = await fixture();
   let review = await openReview(f.options, { directory: f.stateDir }),
-    control;
+    server;
   t.after(async () => {
-    await control?.close();
-    await review.close();
+    if (server) await server.close();
+    else await review.close();
     await f.cleanup();
   });
   const mutate = (input) => review.mutate({ revision: review.state.revision, ...input });
@@ -40,36 +38,21 @@ test('ending preserves feedback, refuses queued abandonment and ends listeners u
   await mutate({ action: 'submit' });
   await assert.rejects(mutate({ action: 'end' }), /Deliver or cancel/);
   await mutate({ action: 'cancel-batch', id: review.state.batches[0].id });
-  let waiting;
-  const ready = new Promise((resolve) => {
-    waiting = resolve;
-  });
-  control = await startControl(review, 'http://127.0.0.1/review/example', (count) => {
-    if (count) waiting();
-  });
-  const pending = controlRequest(
-    f.stateDir,
-    review.state.reviewId,
-    '/next?after=1&wait=5000',
-    'GET',
-    6000,
-  );
-  await ready;
+  server = await startServer(review, { watch: false });
+  const pending = agentRequest(server, 'wait', { timeout: 5000 }, 10000);
+  while (!(await agentRequest(server, 'status')).listening)
+    await new Promise((resolve) => setTimeout(resolve, 20));
   await mutate({ action: 'end' });
   assert.equal((await pending).status, 'ended');
-  assert.equal(
-    (await controlRequest(f.stateDir, review.state.reviewId, '/next?after=0&wait=0')).status,
-    'ended',
-  );
+  assert.equal((await agentRequest(server, 'wait', { timeout: 0 })).status, 'ended');
   await assert.rejects(
     mutate({ action: 'edit', id: review.state.comments[0].id, body: 'Rejected.' }),
     /Review ended/,
   );
   await assert.rejects(review.refresh(), /Resume explicitly/);
-  await control.close();
-  control = undefined;
   const endedAt = review.state.endedAt;
-  await review.close();
+  await server.close();
+  server = undefined;
   review = await openReview(f.options, { directory: f.stateDir });
   assert.equal(review.state.endedAt, endedAt);
   assert.equal(review.state.comments.length, 1);
@@ -77,44 +60,6 @@ test('ending preserves feedback, refuses queued abandonment and ends listeners u
   await mutate({ action: 'resume' });
   assert.equal(review.state.endedAt, undefined);
   assert.match(review.view().documents[0].source, /Updated while ended/);
-});
-
-test('CLI end returns ended, rejects ordinary reopening and resumes explicitly on the same server', async (t) => {
-  const f = await fixture();
-  let cli;
-  t.after(async () => {
-    await cli?.close();
-    await f.cleanup();
-  });
-  cli = await launchFixture('bin/spectater.js', f);
-  const state = await cli.request('state');
-  const env = { ...process.env, SPECTATER_STATE_DIR: f.stateDir, SPECTATER_CONFIG: f.configFile };
-  const run = (args) =>
-    promisify(execFile)(process.execPath, ['bin/spectater.js', ...args], { env, timeout: 15000 });
-  assert.equal(JSON.parse((await run(['end', '--review', state.reviewId])).stdout).status, 'ended');
-  assert.equal(
-    JSON.parse(
-      (
-        await run([
-          'feedback',
-          '--review',
-          state.reviewId,
-          '--after',
-          '0',
-          '--wait',
-          '0',
-          '--format',
-          'json',
-        ])
-      ).stdout,
-    ).status,
-    'ended',
-  );
-  const open = ['open', '--project', f.project, '--change', 'example', '--no-open'];
-  await assert.rejects(run(open), /Use --reopen/);
-  const resumed = await run([...open, '--reopen']);
-  assert.match(resumed.stdout, /Reused active review/);
-  assert.equal((await cli.request('state')).endedAt, undefined);
 });
 
 test('source comparisons retain previous manifests across metadata changes, removals and restart', async (t) => {
