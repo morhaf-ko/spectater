@@ -355,7 +355,6 @@ function displayFeedback() {
     : '';
   $('submit').textContent = editing ? 'Update queued batch' : 'Submit batch';
   updateSubmit();
-  $('end-pending').hidden = !state.endRequestedAt || Boolean(state.endedAt);
   $('agent-message').disabled = Boolean(state.endedAt);
   $('refresh').disabled = Boolean(state.endedAt);
   $('comment-hint').hidden ||= Boolean(state.endedAt);
@@ -635,7 +634,9 @@ $('review-lifecycle').addEventListener('click', () => {
 });
 function updateSubmit() {
   $('submit').disabled = Boolean(state.endedAt) || !hasPendingFeedback();
-  $('review-lifecycle').hidden = Boolean(state.endRequestedAt && !state.endedAt);
+  const endPending = Boolean(state.endRequestedAt && !state.endedAt);
+  $('end-pending').hidden = !endPending;
+  $('review-lifecycle').hidden = endPending;
   $('review-lifecycle').textContent = state.endedAt
     ? 'Resume review'
     : hasPendingFeedback()

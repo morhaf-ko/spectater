@@ -762,7 +762,6 @@ test('What changed compares snapshots and End review preserves read-only history
     await expect(page.locator('#message')).toContainText('Deliver or cancel');
     await page.getByRole('button', { name: 'Cancel batch 1', exact: true }).click();
     await expect(page.locator('body')).toHaveAttribute('aria-busy', 'false');
-    // Cancelled comments are pending again, so the reader's one action would send them.
     await expect(page.locator('#review-lifecycle')).toHaveText('Send & End');
     const run = await register(f, review, server);
     await run(['end', 'example']);
