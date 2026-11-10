@@ -29,11 +29,11 @@ Requirements: Node 22.12 or newer, the [OpenSpec CLI](https://github.com/Fission
 
 ### Review every change automatically
 
-To have agents open a review whenever they finish drafting a change, add this to your project's `openspec/config.yaml`. OpenSpec passes `context` to the agent whenever it drafts an artifact (and during apply and archive), in every agent it supports:
+To have agents open a review whenever they finish planning a change, add this to your project's `openspec/config.yaml`. OpenSpec passes `context` to the agent whenever it drafts an artifact (and during apply and archive), in every agent it supports. The review opens once planning is complete, not after each artifact:
 
 ```yaml
 context: |
-  After you draft or revise a change's proposal, design, specs or tasks while planning (not while applying or archiving), open it for review with `npx -y spectater open <change>` and follow `npx -y spectater workflow`. No browser is needed: spectater prints a review URL for the user.
+  When a change's planning artifacts are complete and `openspec validate <change>` passes, or after you revise them while planning (not while applying or archiving), open it for review with `npx -y spectater open <change>` and follow `npx -y spectater workflow`. No browser is needed: spectater prints a review URL for the user.
 ```
 
 If your project doesn't use OpenSpec's workflows, put the same sentence in `AGENTS.md` or `CLAUDE.md` instead. `npx -y spectater` always runs the latest release; to pin the version for everyone who shares the config, write `npx -y spectater@<version>` instead.
