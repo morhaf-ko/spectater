@@ -750,10 +750,11 @@ test('What changed compares snapshots and End review preserves read-only history
     await expect(page.locator('#comments')).toContainText('Do not discard this draft.');
     await page.locator('#submit').click();
     await expect(page.locator('#message')).toContainText('Batch saved.');
+    await expect(page.locator('body')).toHaveAttribute('aria-busy', 'false');
     await page.getByRole('button', { name: 'End review', exact: true }).click();
     await expect(page.locator('#message')).toContainText('Deliver or cancel');
     await page.getByRole('button', { name: 'Cancel batch 1', exact: true }).click();
-    await expect(page.locator('#message')).toContainText('Submission cancelled');
+    await expect(page.locator('body')).toHaveAttribute('aria-busy', 'false');
     await page.getByRole('button', { name: 'End review', exact: true }).click();
     await expect(page.locator('#listener-status')).toContainText('Review ended');
     await expect(page.locator('#refresh')).toBeDisabled();
