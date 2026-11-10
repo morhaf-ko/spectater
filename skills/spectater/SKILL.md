@@ -1,6 +1,6 @@
 ---
 name: spectater
-description: Open an OpenSpec change for browser review and act on the reviewer's selected-text feedback. Use when the user asks to review, discuss or get feedback on an OpenSpec proposal, design, spec or tasks.
+description: Open an OpenSpec change in a local browser reader where the user selects text and comments, then act on that feedback. Use when the user wants to review an OpenSpec proposal, design, spec or tasks and give feedback on specific passages; not for drafting, explaining or implementing a change.
 ---
 
 # SpecTater
