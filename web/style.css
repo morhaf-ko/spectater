@@ -642,6 +642,3 @@ textarea::placeholder {
   text-align: left;
   max-width: 100%;
 }
-#review-lifecycle {
-  margin-top: var(--space-4);
-}

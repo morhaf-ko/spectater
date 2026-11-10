@@ -473,6 +473,13 @@ test('message composer, keyboard shortcuts and Send & End reach a waiting agent'
     expect(review.state.batches[1].entries[0].body).toBe('Saved and sent with one shortcut.');
     const second = JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).batch;
     await run(['reply', 'example', '--batch', String(second.sequence), '--message', 'Done.']);
+    const reviewAction = page.locator('#review-lifecycle');
+    await expect(reviewAction).toHaveText('End review');
+    await expect(page.getByRole('button', { name: /^(End review|Send & End)$/ })).toHaveCount(1);
+    await page.locator('#agent-message').fill('Last note before ending.');
+    await expect(reviewAction).toHaveText('Send & End');
+    await page.locator('#agent-message').fill('');
+    await expect(reviewAction).toHaveText('End review');
     await page.locator('#agent-message').fill('Last note before ending.');
     await page.getByRole('button', { name: 'Send & End', exact: true }).click();
     await expect(page.locator('#end-pending')).toBeVisible();
@@ -755,7 +762,9 @@ test('What changed compares snapshots and End review preserves read-only history
     await expect(page.locator('#message')).toContainText('Deliver or cancel');
     await page.getByRole('button', { name: 'Cancel batch 1', exact: true }).click();
     await expect(page.locator('body')).toHaveAttribute('aria-busy', 'false');
-    await page.getByRole('button', { name: 'End review', exact: true }).click();
+    await expect(page.locator('#review-lifecycle')).toHaveText('Send & End');
+    const run = await register(f, review, server);
+    await run(['end', 'example']);
     await expect(page.locator('#listener-status')).toContainText('Review ended');
     await expect(page.locator('#refresh')).toBeDisabled();
     await expect(
@@ -765,6 +774,9 @@ test('What changed compares snapshots and End review preserves read-only history
     await expect(page.locator('#listener-status')).toContainText('Review ended');
     await expect(page.locator('#comments')).toContainText('Do not discard this draft.');
     await writeFile(f.file, `New source after review ended.\n\n${changed}`);
+    await expect(
+      page.getByRole('button', { name: /^(End review|Send & End|Resume review)$/ }),
+    ).toHaveCount(1);
     await page.getByRole('button', { name: 'Resume review', exact: true }).click();
     await expect(page.locator('#source')).toContainText('New source after review ended.');
     await expect(page.locator('#comments')).toContainText('stale · open');

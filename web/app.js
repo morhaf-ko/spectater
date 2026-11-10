@@ -355,10 +355,7 @@ function displayFeedback() {
     : '';
   $('submit').textContent = editing ? 'Update queued batch' : 'Submit batch';
   updateSubmit();
-  $('send-end').hidden = Boolean(state.endedAt || state.endRequestedAt);
-  $('end-pending').hidden = !state.endRequestedAt || Boolean(state.endedAt);
   $('agent-message').disabled = Boolean(state.endedAt);
-  $('review-lifecycle').textContent = state.endedAt ? 'Resume review' : 'End review';
   $('refresh').disabled = Boolean(state.endedAt);
   $('comment-hint').hidden ||= Boolean(state.endedAt);
   $('receipts').replaceChildren();
@@ -624,26 +621,33 @@ $('comment-popover').addEventListener('toggle', updateDraftButton);
 $('resume-draft').addEventListener('click', () => openComposer());
 $('undo').addEventListener('click', () => action({ action: 'restore', id: undoDeletedId }));
 window.addEventListener('resize', closeComposer);
+function hasPendingFeedback() {
+  return Boolean(state.pendingCommentIds.length || $('agent-message').value.trim());
+}
 $('review-lifecycle').addEventListener('click', () => {
-  if (!state.endedAt && $('comment').value)
+  if (state.endedAt) return void action({ action: 'resume' });
+  if ($('comment').value)
     return announce('Save or clear the unsaved draft before ending the review.', true);
-  if (!state.endedAt) editingId = undefined;
-  void action({ action: state.endedAt ? 'resume' : 'end' });
+  if (hasPendingFeedback()) return void submit(true);
+  editingId = undefined;
+  void action({ action: 'end' });
 });
 function updateSubmit() {
-  $('submit').disabled =
-    Boolean(state.endedAt) || !(state.pendingCommentIds.length || $('agent-message').value.trim());
+  $('submit').disabled = Boolean(state.endedAt) || !hasPendingFeedback();
+  const endPending = Boolean(state.endRequestedAt && !state.endedAt);
+  $('end-pending').hidden = !endPending;
+  $('review-lifecycle').hidden = endPending;
+  $('review-lifecycle').textContent = state.endedAt
+    ? 'Resume review'
+    : hasPendingFeedback()
+      ? 'Send & End'
+      : 'End review';
 }
 function submit(end = false) {
   const message = $('agent-message').value.trim();
   return action({ action: 'submit', ...(message ? { message } : {}), ...(end ? { end } : {}) });
 }
 $('submit').addEventListener('click', () => submit());
-$('send-end').addEventListener('click', () => {
-  if ($('comment').value)
-    return announce('Save or clear the unsaved draft before ending the review.', true);
-  void submit(true);
-});
 $('agent-message').addEventListener('input', updateSubmit);
 $('agent-message').addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
