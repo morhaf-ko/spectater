@@ -36,7 +36,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at the maintainer, Morhaf Kourbaj, through a [private report](https://github.com/morhaf-ko/spectater/security/advisories/new) or the contact details at <https://morhaf.dev>. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement, here the maintainer Morhaf Kourbaj, through a [private report](https://github.com/morhaf-ko/spectater/security/advisories/new) or the contact details at <https://morhaf.dev>. All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 
