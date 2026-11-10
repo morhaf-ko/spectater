@@ -69,7 +69,7 @@ Other commands report `ready` or `reused` (`open`), `recorded` (`reply`), `refre
 - Select text in the rendered view or the Markdown source, then comment. Enter saves; Cmd/Ctrl+Enter saves and submits.
 - Write a message to the agent that is not tied to a selection.
 - Submit sends only new or changed comments. Until the agent picks a batch up you can edit or cancel it.
-- **Send & End** submits and ends the review once the agent has received the final batch.
+- One button ends the review. It reads **Send & End** while comments or a message are pending: it submits them and ends the review once the agent has received the final batch. With nothing pending it reads **End review**, and after the review ends, **Resume review**.
 - Comments on text that later changes are marked stale (with a suggested re-anchor) or orphaned; nothing is silently moved.
 - "What changed" diffs the latest source update against the previous one.
 - Edits appear as the agent saves them. When an agent's sandbox blocks file watching (Codex on macOS, for example), they appear when the agent replies.
