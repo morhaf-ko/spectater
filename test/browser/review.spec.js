@@ -753,6 +753,7 @@ test('What changed compares snapshots and End review preserves read-only history
     await page.getByRole('button', { name: 'End review', exact: true }).click();
     await expect(page.locator('#message')).toContainText('Deliver or cancel');
     await page.getByRole('button', { name: 'Cancel batch 1', exact: true }).click();
+    await expect(page.locator('#message')).toContainText('Submission cancelled');
     await page.getByRole('button', { name: 'End review', exact: true }).click();
     await expect(page.locator('#listener-status')).toContainText('Review ended');
     await expect(page.locator('#refresh')).toBeDisabled();
