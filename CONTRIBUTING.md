@@ -1,5 +1,7 @@
 # Contributing
 
+Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+
 ## Setup
 
 You need [Bun](https://bun.sh) 1.4.4 for development, Node 22.12 or newer, and Chrome for the browser tests.
