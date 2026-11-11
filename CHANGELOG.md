@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.3.0...spectater-v0.4.0) (2026-11-11)
+
+
+### Features
+
+* one review action that ends or sends and ends ([#17](https://github.com/morhaf-ko/spectater/issues/17)) ([2892039](https://github.com/morhaf-ko/spectater/commit/28920396529174fc772419635ee720433557e337))
+
 ## [0.3.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.2.1...spectater-v0.3.0) (2026-11-09)
 
 
