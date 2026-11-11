@@ -4,7 +4,9 @@
 [![npm](https://img.shields.io/npm/v/spectater)](https://www.npmjs.com/package/spectater)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Review [OpenSpec](https://github.com/Fission-AI/OpenSpec) changes in your browser and send selected-text feedback straight to your coding agent.
+Specs are Markdown written for agents. Reviewing them is easier on a rendered page where you can comment on the exact line.
+
+SpecTater opens an [OpenSpec](https://github.com/Fission-AI/OpenSpec) change in your browser and sends your comments to your coding agent.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/reader-dark.png">

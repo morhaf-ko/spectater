@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",
-    "@fission-ai/openspec": "1.16.1",
+    "@fission-ai/openspec": "1.17.0",
     "@playwright/test": "1.65.0"
   },
   "repository": {
