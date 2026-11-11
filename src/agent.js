@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDiscovery, within } from './discovery.js';
 import { readFileLimited, readLimited } from './files.js';
-import { alive, privateDirectory } from './storage.js';
+import { alive, privateDirectory, privateFile } from './storage.js';
 
 const bin = fileURLToPath(new URL('../bin/spectater.js', import.meta.url));
 const serverFile = (directory, reviewId) => path.join(directory, `${reviewId}.server.json`);
@@ -39,8 +39,7 @@ export async function readServer(directory, reviewId) {
       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.mode & 0o077 || stat.uid !== process.getuid())
-      throw new Error('Server record is not a private regular file.');
+    if (!privateFile(stat)) throw new Error('Server record is not a private regular file.');
     const record = JSON.parse(new TextDecoder().decode(await readLimited(handle, 65536)));
     if (record.reviewId !== reviewId || !Number.isSafeInteger(record.pid))
       throw new Error('Invalid server record.');
@@ -156,6 +155,7 @@ export async function startDetached(options, directory, reviewId) {
   try {
     child = spawn(process.execPath, args, {
       detached: true,
+      windowsHide: true,
       stdio: ['ignore', output.fd, output.fd],
       env: { ...process.env, SPECTATER_STATE_DIR: directory },
     });

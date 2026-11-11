@@ -27,7 +27,7 @@ Then ask your agent to review a change, for example "let's go through the add-da
 
 Without the skill, tell the agent: "Run `npx -y spectater workflow` and follow it for the add-dark-mode change."
 
-Requirements: Node 22.12 or newer, the [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) 1.15 or newer (`npm install -g @fission-ai/openspec`), macOS or Linux. Git is optional; it powers the "What changed" diff.
+Requirements: Node 22.12 or newer, the [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) 1.15 or newer (`npm install -g @fission-ai/openspec`), and macOS, Linux or Windows (including WSL). Git is optional; it powers the "What changed" diff.
 
 ### Review every change automatically
 
@@ -107,21 +107,25 @@ For each agent that is installed, this adds a SessionStart hook for Claude Code 
 
 ## Agents on another machine
 
-When the agent runs over SSH, in a devcontainer, in a codespace or on a headless Linux host (including tmux or Herdr panes without SSH variables), the server still listens on `127.0.0.1` only. Where detection can't tell, for example a macOS host or Linux desktop reached over SSH from tmux, set `SPECTATER_REMOTE=1` in that shell. You reach it through a forward or a proxy you control:
+SpecTater treats the session as remote when the agent runs over SSH (from macOS, Linux or Windows), in a tmux session last attached over SSH, in a devcontainer, in a codespace or on a headless Linux host (including Herdr or tmux panes without SSH variables). Where detection can't tell, for example a Herdr pane on a macOS or Linux desktop you reach over SSH, set `SPECTATER_REMOTE=1` in that shell.
+
+- **Tailscale.** When Tailscale is running with MagicDNS, the server also listens on this machine's tailnet IPv4 and prints a URL such as `http://forge.tail1234.ts.net:47420/review/…`, which opens on any device in your tailnet, phones included. This happens in local and remote sessions; agent commands stay on loopback. A configured `publicUrl` takes precedence, and `SPECTATER_TAILSCALE=0` turns it off. When `tailscale serve` or another program holds the port on the tailnet address, the review moves to the next port; if the address can't be bound at all, the review stays on loopback and the server log says why.
+
+Without Tailscale the server listens on `127.0.0.1` only, and you reach it through a forward or a proxy you control:
 
 - **SSH.** The server prefers port 47420 (or `port` / `SPECTATER_PORT`) and moves to the next free port in 47420–47429 when another review holds it. `open` prints the tunnel command in `access`, for example `ssh -N -L 47420:127.0.0.1:47420 forge`. To forward every review on that port, add `LocalForward 127.0.0.1:47420 127.0.0.1:47420` to the host's entry in your local `~/.ssh/config`.
 - **VS Code Remote and devcontainers.** `open` uses the editor's `$BROWSER` helper, which forwards the port and opens the review on your machine. Forwarded `localhost` addresses and remapped local ports are accepted.
 - **Other containers.** `docker run -p` cannot reach a server bound to the container's loopback. Forward the port with your editor, or run the container with `--network host`. `open` reports `access.mode: forward`.
-- **WSL.** Treated as local: Windows browsers reach WSL2 loopback directly. If `xdg-open` is missing, set `BROWSER=wslview` or open the printed URL.
-- **`$BROWSER`.** A colon-separated list of commands, for example `firefox --new-window` or `chromium %s`. The first one that starts is used, and SpecTater does not wait for it to exit.
+- **WSL.** Treated as local: Windows browsers reach WSL2 loopback directly. If `xdg-open` is missing, the review opens in the Windows default browser.
+- **`$BROWSER`.** A colon-separated (semicolon on Windows) list of commands, for example `firefox --new-window` or `chromium %s`. The first one that starts is used, and SpecTater does not wait for it to exit.
 - **Codespaces.** The review URL uses the codespace's forwarded-port domain. Keep the port private.
-- **Tailscale or another reverse proxy.** Works with proxies that serve the review at the root of a hostname (Tailscale Serve, Cloudflare Tunnel, Gitpod or Coder subdomain apps); proxies that add a path prefix, such as code-server's `/absproxy/<port>/`, are not supported. Set `port` and `publicUrl`, and run the proxy yourself once, for example `tailscale serve --bg --https=47420 http://127.0.0.1:47420` with `"publicUrl": "https://<machine>.<tailnet>.ts.net:47420"`. Review URLs then open on any device in your tailnet. The public URL applies only while the server holds that port; a review on a fallback port gets a tunnel command instead.
+- **`tailscale serve` or another reverse proxy.** Use this for HTTPS or a fixed port. Works with proxies that serve the review at the root of a hostname (Tailscale Serve, Cloudflare Tunnel, Gitpod or Coder subdomain apps); proxies that add a path prefix, such as code-server's `/absproxy/<port>/`, are not supported. Set `port` and `publicUrl`, and run the proxy yourself once, for example `tailscale serve --bg --https=47420 http://127.0.0.1:47420` with `"publicUrl": "https://<machine>.<tailnet>.ts.net:47420"`. Review URLs then open on any device in your tailnet. The public URL applies only while the server holds that port; a review on a fallback port gets a tunnel command instead.
 
-| `access.mode` | Meaning                                                                        |
-| ------------- | ------------------------------------------------------------------------------ |
-| `tunnel`      | Run `access.command` on the machine with the browser, then open the URL.       |
-| `forward`     | Forward `access.port` from the container to the machine with the browser.      |
-| `public`      | The URL goes through your configured proxy or the codespace's port forwarding. |
+| `access.mode` | Meaning                                                                         |
+| ------------- | ------------------------------------------------------------------------------- |
+| `tunnel`      | Run `access.command` on the machine with the browser, then open the URL.        |
+| `forward`     | Forward `access.port` from the container to the machine with the browser.       |
+| `public`      | The URL uses your tailnet, configured proxy or the codespace's port forwarding. |
 
 ## Configuration
 
@@ -137,18 +141,20 @@ No configuration is required. An optional `~/.config/spectater/config.json` (or 
 }
 ```
 
-| Variable                 | Effect                                                                                                                           |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `SPECTATER_STATE_DIR`    | Where reviews are stored. Default: `~/Library/Application Support/SpecTater` on macOS, `$XDG_STATE_HOME/spectater` on Linux.     |
-| `SPECTATER_REMOTE`       | `1` or `0` forces remote or local behaviour when detection is wrong, for example `1` on a macOS host reached over SSH from tmux. |
-| `SPECTATER_PORT`         | Preferred server port; overrides `port`. Default: random locally, 47420 on a remote session. A `publicUrl` stays tied to `port`. |
-| `SPECTATER_IDLE_TIMEOUT` | Seconds before an unused server stops itself. Default 1800; `0` disables.                                                        |
+| Variable                 | Effect                                                                                                                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SPECTATER_STATE_DIR`    | Where reviews are stored. Default: `~/Library/Application Support/SpecTater` on macOS, `$XDG_STATE_HOME/spectater` on Linux, `%LOCALAPPDATA%\SpecTater` on Windows, where it must stay inside your user profile. |
+| `SPECTATER_REMOTE`       | `1` or `0` forces remote or local behaviour when detection is wrong, for example `1` on a macOS host reached over SSH from tmux.                                                                                 |
+| `SPECTATER_PORT`         | Preferred server port; overrides `port`. Default: random locally, 47420 on a remote session. A `publicUrl` stays tied to `port`.                                                                                 |
+| `SPECTATER_IDLE_TIMEOUT` | Seconds before an unused server stops itself. Default 1800; `0` disables.                                                                                                                                        |
+| `SPECTATER_TAILSCALE`    | `0` stops the server from listening on the tailnet address.                                                                                                                                                      |
+| `SPECTATER_HERDR_CHIME`  | `1` inside [Herdr](https://herdr.dev) shows a Herdr notification with a chime when the agent starts waiting for your feedback, once per batch.                                                                   |
 
 Review state lives outside your repository and is never uploaded. Back it up separately if you need the history.
 
 ## Security and limits
 
-The server listens on `127.0.0.1` only and accepts `localhost`, `127.0.0.1` or `[::1]` on any port (for forwards) plus your `publicUrl`. The URL contains a private token; anyone with it can read and comment on the review, so do not share it. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. Windows is not supported. See [SECURITY.md](SECURITY.md) to report a vulnerability.
+The server listens on `127.0.0.1`, plus your tailnet address when Tailscale is running, and accepts `localhost`, `127.0.0.1` or `[::1]` on any port (for forwards) plus your `publicUrl` or tailnet name. Agent commands are accepted on loopback only. The URL contains a private token; anyone with it can read and comment on the review, so do not share it. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Contributing
 

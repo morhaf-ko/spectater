@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, open, realpath } from 'node:fs/promises';
+import { access, lstat, open, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { readLimited } from './files.js';
@@ -17,13 +17,39 @@ export function within(root, file) {
   );
 }
 
-export async function native(args, cwd) {
+/** True when `PATH` holds `command` with one of `PATHEXT`'s extensions (Windows lookup). */
+async function onWindowsPath(command, env = process.env) {
+  const extensions = (env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  for (const directory of (env.PATH || env.Path || '').split(';').filter(Boolean))
+    for (const extension of extensions)
+      if (
+        await access(path.win32.join(directory, command + extension)).then(
+          () => true,
+          () => false,
+        )
+      )
+        return true;
+  return false;
+}
+
+export async function native(args, cwd, platform = process.platform) {
+  // npm installs `openspec.cmd` on Windows, which only cmd.exe can run; it sees the joined args.
+  const shell = platform === 'win32';
+  if (shell && args.some((arg) => !/^[\w.:/@-]+$/.test(arg)))
+    throw new Error('OpenSpec arguments on Windows may use only letters, digits and . _ : / @ -.');
+  if (shell && !(await onWindowsPath('openspec')))
+    throw diagnostic(Object.assign(new Error('openspec not found'), { code: 'ENOENT' }));
   try {
-    const { stdout } = await promisify(execFile)('openspec', args, {
+    // cmd.exe takes one validated command line; NoDefaultCurrentDirectoryInExePath stops it
+    // running an `openspec.cmd` from the reviewed project instead of the one on PATH.
+    const [command, list] = shell ? [['openspec', ...args].join(' '), []] : ['openspec', args];
+    const { stdout } = await promisify(execFile)(command, list, {
       cwd,
+      shell,
+      windowsHide: true,
       timeout: 15000,
       maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, OPENSPEC_TELEMETRY: '0' },
+      env: { ...process.env, OPENSPEC_TELEMETRY: '0', NoDefaultCurrentDirectoryInExePath: '1' },
     });
     return stdout;
   } catch (error) {

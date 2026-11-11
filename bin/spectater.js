@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import { accessFor, handoffFor, preferredPort, publicOrigin } from '../src/access.js';
+import {
+  accessFor,
+  detectTailscale,
+  handoffFor,
+  notifyHerdr,
+  preferredPort,
+  publicOrigin,
+  remoteSession,
+} from '../src/access.js';
 import {
   agentRequest,
   listServers,
@@ -115,6 +123,8 @@ async function listing(directory, { cwd, hook } = {}) {
 const commands = {
   async open(values, change) {
     const { config, directory, options } = await context(values, change);
+    // Validates SPECTATER_REMOTE before a server starts.
+    const remote = remoteSession();
     const found = await locate(options, directory);
     let record = found.record;
     let status = 'reused';
@@ -139,7 +149,8 @@ const commands = {
     let opened = false;
     if (!values['no-open'] && config.openBrowser) {
       const { openBrowser } = await import('../src/server.js');
-      opened = await openBrowser(url).then(
+      // A browser on this machine uses loopback, which works even where MagicDNS does not resolve.
+      opened = await openBrowser(remote ? url : record.url).then(
         (result) => result,
         (error) => {
           process.stderr.write(`Browser opening failed: ${error.message}\n`);
@@ -163,6 +174,7 @@ const commands = {
     const { createDiscovery } = await import('../src/discovery.js');
     const { openReview } = await import('../src/review.js');
     const { startServer } = await import('../src/server.js');
+    const tailnet = detectTailscale();
     const discover = createDiscovery();
     const manifest = await discover(options);
     const review = await openReview(
@@ -191,9 +203,12 @@ const commands = {
         idleTimeout: idle * 1000,
         onIdle: stop,
         onStop: stop,
+        onWaiting: () => notifyHerdr(manifest.change),
         port: preferredPort(config),
         publicOrigin: (port) => publicOrigin(config, port),
+        tailnet: await tailnet,
       });
+      if (server.tailnetError) process.stderr.write(`${server.tailnetError}\n`);
       await writeServer(directory, {
         reviewId: manifest.reviewId,
         pid: process.pid,

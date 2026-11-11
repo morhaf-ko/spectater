@@ -44,7 +44,12 @@ function copilot(settings) {
   settings.version = 1;
   settings.hooks ||= {};
   const hooks = (settings.hooks.sessionStart || []).filter((h) => !managed(h.bash));
-  hooks.push({ type: 'command', bash: `${COMMAND} copilot`, timeoutSec: 10 });
+  hooks.push({
+    type: 'command',
+    bash: `${COMMAND} copilot`,
+    powershell: `${COMMAND} copilot`,
+    timeoutSec: 10,
+  });
   settings.hooks.sessionStart = hooks;
   return settings;
 }
@@ -53,12 +58,25 @@ const OPENCODE_MARKER = '// Managed by spectater setup hooks.';
 const openCodePlugin = `${OPENCODE_MARKER}
 import { execFile } from 'node:child_process';
 
+// npm installs spectater.cmd on Windows, which cmd.exe runs from one command line; the env
+// variable stops cmd.exe preferring a spectater.cmd in the project directory.
+const statusCommand =
+  process.platform === 'win32' ? ['spectater status --hook', []] : ['spectater', ['status', '--hook']];
+
 export const SpecTaterPlugin = async ({ directory }) => {
   const seen = new Map();
   const status = () =>
     new Promise((resolve) =>
-      execFile('spectater', ['status', '--hook'], { cwd: directory, timeout: 10000 }, (error, stdout) =>
-        resolve(error ? '' : stdout.trim()),
+      execFile(
+        ...statusCommand,
+        {
+          cwd: directory,
+          timeout: 10000,
+          shell: process.platform === 'win32',
+          windowsHide: true,
+          env: { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' },
+        },
+        (error, stdout) => resolve(error ? '' : stdout.trim()),
       ),
     );
   return {
