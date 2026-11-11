@@ -50,10 +50,15 @@ const loopbackAddress = (address = '') => address === '::1' || /^(?:::ffff:)?127
 /** Hands connections on the tailnet address to the loopback HTTP server. */
 function listenTailnet(server, address, port) {
   const listener = net.createServer((socket) => server.emit('connection', socket));
+  // The HTTP server's own cap only counts sockets it accepted itself.
+  listener.maxConnections = server.maxConnections;
   return new Promise((resolve, reject) => {
     listener.once('error', reject);
     listener.listen(port, address, () => {
       listener.off('error', reject);
+      listener.on('error', (error) =>
+        process.stderr.write(`Tailscale listener failed: ${error.message}\n`),
+      );
       resolve(listener);
     });
   });
@@ -251,7 +256,8 @@ export async function startServer(review, options = {}) {
     try {
       // Loopback names on any port admit SSH and editor forwards; DNS rebinding sends the attacker's name.
       const host = (request.headers.host || '').toLowerCase();
-      const loopback = loopbackHost.test(host);
+      // Loopback names are trusted only on loopback sockets, never on the tailnet listener.
+      const loopback = loopbackHost.test(host) && loopbackAddress(request.socket.localAddress);
       if (!loopback && host !== (external && new URL(external).host))
         return send(403, { error: 'Invalid Host.' });
       const requestOrigin = request.headers.origin;

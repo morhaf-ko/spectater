@@ -40,13 +40,16 @@ export async function native(args, cwd, platform = process.platform) {
   if (shell && !(await onWindowsPath('openspec')))
     throw diagnostic(Object.assign(new Error('openspec not found'), { code: 'ENOENT' }));
   try {
-    const { stdout } = await promisify(execFile)('openspec', args, {
+    // cmd.exe takes one validated command line; NoDefaultCurrentDirectoryInExePath stops it
+    // running an `openspec.cmd` from the reviewed project instead of the one on PATH.
+    const [command, list] = shell ? [['openspec', ...args].join(' '), []] : ['openspec', args];
+    const { stdout } = await promisify(execFile)(command, list, {
       cwd,
       shell,
       windowsHide: true,
       timeout: 15000,
       maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, OPENSPEC_TELEMETRY: '0' },
+      env: { ...process.env, OPENSPEC_TELEMETRY: '0', NoDefaultCurrentDirectoryInExePath: '1' },
     });
     return stdout;
   } catch (error) {

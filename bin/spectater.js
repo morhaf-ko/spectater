@@ -8,6 +8,7 @@ import {
   notifyHerdr,
   preferredPort,
   publicOrigin,
+  remoteSession,
 } from '../src/access.js';
 import {
   agentRequest,
@@ -146,7 +147,8 @@ const commands = {
     let opened = false;
     if (!values['no-open'] && config.openBrowser) {
       const { openBrowser } = await import('../src/server.js');
-      opened = await openBrowser(url).then(
+      // A browser on this machine uses loopback, which works even where MagicDNS does not resolve.
+      opened = await openBrowser(remoteSession() ? url : record.url).then(
         (result) => result,
         (error) => {
           process.stderr.write(`Browser opening failed: ${error.message}\n`);

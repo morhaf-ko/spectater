@@ -58,15 +58,24 @@ const OPENCODE_MARKER = '// Managed by spectater setup hooks.';
 const openCodePlugin = `${OPENCODE_MARKER}
 import { execFile } from 'node:child_process';
 
+// npm installs spectater.cmd on Windows, which cmd.exe runs from one command line; the env
+// variable stops cmd.exe preferring a spectater.cmd in the project directory.
+const statusCommand =
+  process.platform === 'win32' ? ['spectater status --hook', []] : ['spectater', ['status', '--hook']];
+
 export const SpecTaterPlugin = async ({ directory }) => {
   const seen = new Map();
   const status = () =>
     new Promise((resolve) =>
       execFile(
-        'spectater',
-        ['status', '--hook'],
-        // npm installs spectater.cmd on Windows, which needs a shell.
-        { cwd: directory, timeout: 10000, shell: process.platform === 'win32', windowsHide: true },
+        ...statusCommand,
+        {
+          cwd: directory,
+          timeout: 10000,
+          shell: process.platform === 'win32',
+          windowsHide: true,
+          env: { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' },
+        },
         (error, stdout) => resolve(error ? '' : stdout.trim()),
       ),
     );
