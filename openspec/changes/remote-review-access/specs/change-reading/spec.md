@@ -2,7 +2,7 @@
 
 ### Requirement: Bounded local access
 
-The system SHALL serve only the selected manifest on loopback and authorize review requests with a per-process capability. It SHALL accept requests whose host is `127.0.0.1` or `localhost` on any port, or the host of the active public URL, and MUST require any request origin to equal the request's own loopback host or the active public origin. It MUST reject other hosts, foreign mutation origins, unauthorized requests, oversized input and filesystem paths outside the selected change.
+The system SHALL serve only the selected manifest on loopback and authorize review requests with a per-process capability. It SHALL accept requests whose host is `127.0.0.1`, `localhost` or `[::1]` with any port or none, or the host of the active public URL, and MUST require any request origin to equal the request's own loopback host or the active public origin. It MUST reject other hosts, foreign mutation origins, unauthorized requests, oversized input and filesystem paths outside the selected change.
 
 #### Scenario: Cross-site write
 
@@ -50,5 +50,5 @@ The system SHALL provide built-in defaults without requiring a configuration fil
 
 #### Scenario: Invalid public URL
 
-- **WHEN** `publicUrl` has a path, query, fragment, credentials or a scheme other than http or https, or is set without a preferred port
+- **WHEN** `publicUrl` has a path, query, fragment, credentials or a scheme other than http or https, or is set without `port`
 - **THEN** the command reports the configuration error and does not start a review

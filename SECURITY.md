@@ -6,7 +6,7 @@ Report vulnerabilities privately through [GitHub security advisories](https://gi
 
 SpecTater is a local tool for one user.
 
-- The server binds to `127.0.0.1`. Every data request needs the random token in the review URL. It accepts a `Host` of `localhost` or `127.0.0.1` on any port, so SSH and editor forwards work, plus the host of a configured `publicUrl` or codespace URL; other hosts are refused, which blocks DNS rebinding. An `Origin` must match the request's own loopback host or the public origin, and browser mutations require same-origin JSON.
+- The server binds to `127.0.0.1`. Every data request needs the random token in the review URL. It accepts a `Host` of `localhost`, `127.0.0.1` or `[::1]` on any port, so SSH and editor forwards work, plus the host of a configured `publicUrl` or codespace URL; other hosts are refused, which blocks DNS rebinding. An `Origin` must match the request's own loopback host or the public origin, and browser mutations require same-origin JSON.
 - SpecTater never starts tunnels or proxies. With `publicUrl`, anyone who can reach your proxy and holds a review URL can read and comment on that review, so keep the proxy private (for example tailnet-only `tailscale serve`, never Funnel) and the codespace port private.
 - Agent commands read the URL from an owner-only (`0600`) server record in the state directory.
 - Markdown renders without raw HTML, scripts, remote images or relative links. A restrictive Content Security Policy is set. SpecTater never writes to your Markdown.

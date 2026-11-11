@@ -19,7 +19,12 @@ function publicOrigin(value) {
   if (
     !url ||
     !['http:', 'https:'].includes(url.protocol) ||
-    url.origin !== value.replace(/\/$/, '')
+    url.username ||
+    url.password ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash ||
+    /[?#]/.test(value)
   )
     throw new Error(
       'publicUrl must be an http or https origin without credentials, path, query or fragment.',
@@ -57,8 +62,8 @@ export async function loadConfig(explicit, env = process.env) {
       parsePort(config.port, 'port');
     }
     if (config.publicUrl !== undefined) config.publicUrl = publicOrigin(config.publicUrl);
-    if (config.publicUrl && config.port === undefined && !env.SPECTATER_PORT)
-      throw new Error('publicUrl needs port (or SPECTATER_PORT) for the proxy to target.');
+    if (config.publicUrl && config.port === undefined)
+      throw new Error('publicUrl needs port, the local port its proxy targets.');
     return { ...defaults, ...config };
   } catch (error) {
     throw new Error(

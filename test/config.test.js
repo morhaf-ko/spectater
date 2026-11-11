@@ -54,9 +54,18 @@ test('port and publicUrl are validated and the public origin is normalized', asy
     port: 47421,
     publicUrl: 'https://forge.example.ts.net:47421',
   });
+  for (const [value, origin] of [
+    ['https://Forge.Example.ts.net', 'https://forge.example.ts.net'],
+    ['https://forge.example.ts.net:443/', 'https://forge.example.ts.net'],
+    ['http://forge.example.ts.net:8080', 'http://forge.example.ts.net:8080'],
+  ]) {
+    await writeFile(file, JSON.stringify({ port: 47421, publicUrl: value }));
+    assert.equal((await loadConfig(file)).publicUrl, origin, value);
+  }
   await writeFile(file, '{"publicUrl":"https://forge.example.ts.net"}');
-  assert.equal(
-    (await loadConfig(file, { SPECTATER_PORT: '47421' })).publicUrl,
-    'https://forge.example.ts.net',
-  );
+  await assert.rejects(loadConfig(file, { SPECTATER_PORT: '47421' }), /publicUrl needs port/);
+  for (const value of ['https://forge.example.ts.net/?', 'https://forge.example.ts.net/#']) {
+    await writeFile(file, JSON.stringify({ port: 47421, publicUrl: value }));
+    await assert.rejects(loadConfig(file), /publicUrl must be/, value);
+  }
 });

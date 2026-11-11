@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 
 export const REMOTE_PORT = 47420;
@@ -20,12 +21,15 @@ export function remoteSession(env = process.env, platform = process.platform) {
   if (['1', 'true'].includes(override)) return true;
   if (['0', 'false'].includes(override)) return false;
   if (override) throw new Error('SPECTATER_REMOTE must be 1, true, 0 or false.');
-  return Boolean(
-    env.SSH_CONNECTION ||
-      env.SSH_TTY ||
-      codespace(env) ||
-      (platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY),
-  );
+  if (env.SSH_CONNECTION || env.SSH_TTY || codespace(env)) return true;
+  // Windows browsers reach WSL2 loopback directly, so a display-less WSL shell is still local.
+  if (env.WSL_DISTRO_NAME) return false;
+  return platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY;
+}
+
+/** True inside a Docker or Podman container, where an SSH tunnel to the hostname cannot work. */
+export function containerized() {
+  return existsSync('/.dockerenv') || existsSync('/run/.containerenv');
 }
 
 export function parsePort(value, source) {
@@ -46,18 +50,28 @@ export function preferredPort(config, env = process.env, platform = process.plat
   return configuredPort(config, env) ?? (remoteSession(env, platform) ? REMOTE_PORT : 0);
 }
 
-/** The public origin for the port actually bound, or undefined when the review stays on loopback. */
+/**
+ * The public origin for the port actually bound, or undefined when the review stays on loopback.
+ * A configured `publicUrl` belongs to the config's `port`, which its proxy targets.
+ */
 export function publicOrigin(config, port, env = process.env) {
-  if (config.publicUrl) return port === configuredPort(config, env) ? config.publicUrl : undefined;
+  if (config.publicUrl) return port === config.port ? config.publicUrl : undefined;
   const space = codespace(env);
   return space ? `https://${space.name}-${port}.${space.domain}` : undefined;
 }
 
 /** The `access` object for `open`, or undefined for a local desktop session. */
-export function accessFor(record, config, env = process.env, platform = process.platform) {
+export function accessFor(
+  record,
+  config,
+  env = process.env,
+  platform = process.platform,
+  inContainer = containerized(),
+) {
   const port = record.port ?? Number(new URL(record.url).port);
   if (record.publicUrl) return { mode: 'public', port };
   if (!remoteSession(env, platform) && !config.publicUrl) return undefined;
+  if (inContainer && !env.SSH_CONNECTION && !env.SSH_TTY) return { mode: 'forward', port };
   const host = os.hostname().split('.')[0] || 'this-host';
   return { mode: 'tunnel', port, command: `ssh -N -L ${port}:127.0.0.1:${port} ${host}` };
 }

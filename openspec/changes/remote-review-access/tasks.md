@@ -15,6 +15,8 @@
 - [x] 3.3 Store the public URL beside the loopback URL in the server record, use it for every printed review URL, derive it in a codespace, and keep agent requests on loopback; verify with `bun run test`.
 - [x] 3.4 Honour `SPECTATER_REMOTE` (1/true, 0/false, error otherwise) over detection, and skip the platform opener in remote sessions; verify both overrides and the opener with `bun run test`.
 
+- [x] 3.5 Apply the audit fixes: launch `$BROWSER` helpers detached with `%s` and argument support, accept `[::1]` and portless loopback hosts, normalize `publicUrl` and tie it to `port`, treat WSL as local and use the forward mode in containers; verify with `bun run test`.
+
 ## 4. Agent output
 
 - [x] 4.1 Add the `access` object and its `next_step` wording to `open`, and update the skill to hand the reviewer the command with the URL; verify tunnel, public, fallback and local results with `bun run test`.

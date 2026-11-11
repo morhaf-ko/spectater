@@ -16,7 +16,7 @@ import {
 } from '../src/discovery.js';
 import { anchor, render } from '../src/markdown.js';
 import { openReview } from '../src/review.js';
-import { openBrowser, startServer } from '../src/server.js';
+import { launchHelper, openBrowser, startServer } from '../src/server.js';
 import { feedback, feedbackMarkdown, loadState, openStore } from '../src/storage.js';
 import { fixture, sample } from './helpers.js';
 
@@ -478,6 +478,8 @@ test('forwarded loopback hosts and the public origin are accepted; other origins
     `localhost:${server.port}`,
     'localhost:9000',
     '127.0.0.1:9000',
+    '[::1]:9000',
+    'localhost',
     'review.example.test',
   ])
     assert.equal(await request(state, { Authorization: token, Host: host }), 200, host);
@@ -544,43 +546,47 @@ test('a busy preferred port falls back within the range and reports the bound po
   assert.equal(server.publicUrl, undefined);
 });
 
-test('browser opener tries $BROWSER first and skips headless Linux without one', async () => {
+test('browser opener launches $BROWSER entries first and never opens locally for a remote session', async () => {
   const calls = [];
   const record = async (...args) => calls.push(args);
-  assert.equal(await openBrowser('http://u', record, 'linux', { BROWSER: '/opt/helper' }), true);
-  assert.deepEqual(calls.at(-1).slice(0, 2), ['/opt/helper', ['http://u']]);
-  const failing = async (command, args) => {
-    calls.push([command, args]);
-    if (command !== '/opt/second') throw new Error(`${command} failed`);
+  const helpers = [];
+  const launch = async (command, args) => {
+    helpers.push([command, args]);
+    if (command.includes('fail')) throw new Error(`${command} failed`);
   };
-  assert.equal(
-    await openBrowser('http://u', failing, 'linux', { BROWSER: '/opt/first:/opt/second' }),
-    true,
-  );
+  const open = (env, platform = 'linux') => openBrowser('http://u', record, platform, env, launch);
+  assert.equal(await open({ BROWSER: '/opt/helper' }), true);
+  assert.deepEqual(helpers.at(-1), ['/opt/helper', ['http://u']]);
+  assert.equal(await open({ BROWSER: 'firefox --new-window' }), true);
+  assert.deepEqual(helpers.at(-1), ['firefox', ['--new-window', 'http://u']]);
+  assert.equal(await open({ BROWSER: 'w3m -o x=%s' }), true);
+  assert.deepEqual(helpers.at(-1), ['w3m', ['-o', 'x=http://u']]);
+  assert.equal(await open({ BROWSER: '/opt/fail:/opt/second' }), true);
   assert.deepEqual(
-    calls.slice(-2).map(([command]) => command),
-    ['/opt/first', '/opt/second'],
+    helpers.slice(-2).map(([command]) => command),
+    ['/opt/fail', '/opt/second'],
   );
-  calls.length = 0;
-  assert.equal(await openBrowser('http://u', record, 'linux', {}), false);
+  assert.equal(await open({}), false);
   assert.deepEqual(calls, [], 'no opener on a headless host');
-  await assert.rejects(
-    openBrowser('http://u', failing, 'linux', { BROWSER: '/opt/first' }),
-    /first failed/,
-  );
-  const fallback = async (command) => {
-    if (command === '/opt/first') throw new Error('first failed');
-    calls.push([command]);
-  };
-  assert.equal(await openBrowser('http://u', fallback, 'darwin', { BROWSER: '/opt/first' }), true);
-  assert.deepEqual(calls.at(-1), ['open'], 'a failed helper falls back to the platform opener');
+  await assert.rejects(open({ BROWSER: '/opt/fail' }), /fail failed/);
+  assert.equal(await open({ BROWSER: '/opt/fail' }, 'darwin'), true);
+  assert.deepEqual(calls.at(-1)[0], 'open', 'a failed helper falls back to the platform opener');
   calls.length = 0;
-  assert.equal(await openBrowser('http://u', record, 'darwin', { SPECTATER_REMOTE: '1' }), false);
-  assert.equal(
-    await openBrowser('http://u', record, 'linux', { DISPLAY: ':0', SSH_CONNECTION: 'a b c d' }),
-    false,
-  );
+  assert.equal(await open({ SPECTATER_REMOTE: '1' }, 'darwin'), false);
+  assert.equal(await open({ DISPLAY: ':0', SSH_CONNECTION: 'a b c d' }), false);
   assert.deepEqual(calls, [], 'no platform opener in a remote session');
+});
+
+test('a $BROWSER helper keeps running after open returns; early failures are reported', async () => {
+  const started = Date.now();
+  await launchHelper(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], 200);
+  assert.ok(Date.now() - started < 2000, 'does not wait for a long-running browser');
+  await launchHelper(process.execPath, ['-e', 'process.exit(0)'], 2000);
+  await assert.rejects(
+    launchHelper(process.execPath, ['-e', 'process.exit(3)'], 2000),
+    /exited with 3/,
+  );
+  await assert.rejects(launchHelper('/nonexistent/spectater-helper', [], 2000), /ENOENT/);
 });
 
 test('browser opener uses exact argument and reports failure without shell execution', async () => {

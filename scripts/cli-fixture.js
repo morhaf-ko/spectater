@@ -13,6 +13,7 @@ export const localSession = {
   DISPLAY: ':0',
   SPECTATER_PORT: '',
   SPECTATER_REMOTE: '',
+  WSL_DISTRO_NAME: '',
 };
 
 /** Runs the CLI against a test fixture's project, state directory and config. */

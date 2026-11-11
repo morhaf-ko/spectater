@@ -111,12 +111,16 @@ When the agent runs over SSH, in a devcontainer, in a codespace or on a headless
 
 - **SSH.** The server prefers port 47420 (or `port` / `SPECTATER_PORT`) and moves to the next free port in 47420–47429 when another review holds it. `open` prints the tunnel command in `access`, for example `ssh -N -L 47420:127.0.0.1:47420 forge`. To forward every review on that port, add `LocalForward 127.0.0.1:47420 127.0.0.1:47420` to the host's entry in your local `~/.ssh/config`.
 - **VS Code Remote and devcontainers.** `open` uses the editor's `$BROWSER` helper, which forwards the port and opens the review on your machine. Forwarded `localhost` addresses and remapped local ports are accepted.
+- **Other containers.** `docker run -p` cannot reach a server bound to the container's loopback. Forward the port with your editor, or run the container with `--network host`. `open` reports `access.mode: forward`.
+- **WSL.** Treated as local: Windows browsers reach WSL2 loopback directly. If `xdg-open` is missing, set `BROWSER=wslview` or open the printed URL.
+- **`$BROWSER`.** A colon-separated list of commands, for example `firefox --new-window` or `chromium %s`. The first one that starts is used, and SpecTater does not wait for it to exit.
 - **Codespaces.** The review URL uses the codespace's forwarded-port domain. Keep the port private.
-- **Tailscale or another reverse proxy.** Set `port` and `publicUrl`, and run the proxy yourself once, for example `tailscale serve --bg --https=47420 http://127.0.0.1:47420` with `"publicUrl": "https://<machine>.<tailnet>.ts.net:47420"`. Review URLs then open on any device in your tailnet. The public URL applies only while the server holds that port; a review on a fallback port gets a tunnel command instead.
+- **Tailscale or another reverse proxy.** Works with proxies that serve the review at the root of a hostname (Tailscale Serve, Cloudflare Tunnel, Gitpod or Coder subdomain apps); proxies that add a path prefix, such as code-server's `/absproxy/<port>/`, are not supported. Set `port` and `publicUrl`, and run the proxy yourself once, for example `tailscale serve --bg --https=47420 http://127.0.0.1:47420` with `"publicUrl": "https://<machine>.<tailnet>.ts.net:47420"`. Review URLs then open on any device in your tailnet. The public URL applies only while the server holds that port; a review on a fallback port gets a tunnel command instead.
 
 | `access.mode` | Meaning                                                                        |
 | ------------- | ------------------------------------------------------------------------------ |
 | `tunnel`      | Run `access.command` on the machine with the browser, then open the URL.       |
+| `forward`     | Forward `access.port` from the container to the machine with the browser.      |
 | `public`      | The URL goes through your configured proxy or the codespace's port forwarding. |
 
 ## Configuration
@@ -137,14 +141,14 @@ No configuration is required. An optional `~/.config/spectater/config.json` (or 
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `SPECTATER_STATE_DIR`    | Where reviews are stored. Default: `~/Library/Application Support/SpecTater` on macOS, `$XDG_STATE_HOME/spectater` on Linux.     |
 | `SPECTATER_REMOTE`       | `1` or `0` forces remote or local behaviour when detection is wrong, for example `1` on a macOS host reached over SSH from tmux. |
-| `SPECTATER_PORT`         | Preferred server port; overrides `port`. Default: random locally, 47420 on a remote session.                                     |
+| `SPECTATER_PORT`         | Preferred server port; overrides `port`. Default: random locally, 47420 on a remote session. A `publicUrl` stays tied to `port`. |
 | `SPECTATER_IDLE_TIMEOUT` | Seconds before an unused server stops itself. Default 1800; `0` disables.                                                        |
 
 Review state lives outside your repository and is never uploaded. Back it up separately if you need the history.
 
 ## Security and limits
 
-The server listens on `127.0.0.1` only and accepts `localhost` or `127.0.0.1` on any port (for forwards) plus your `publicUrl`. The URL contains a private token; anyone with it can read and comment on the review, so do not share it. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. Windows is not supported. See [SECURITY.md](SECURITY.md) to report a vulnerability.
+The server listens on `127.0.0.1` only and accepts `localhost`, `127.0.0.1` or `[::1]` on any port (for forwards) plus your `publicUrl`. The URL contains a private token; anyone with it can read and comment on the review, so do not share it. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. Windows is not supported. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Contributing
 

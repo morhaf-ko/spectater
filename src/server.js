@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import http from 'node:http';
@@ -43,7 +43,7 @@ async function readJson(request) {
   return input;
 }
 
-const loopbackHost = /^(?:127\.0\.0\.1|localhost):\d{1,5}$/;
+const loopbackHost = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d{1,5})?$/;
 
 async function listen(server, port) {
   const last = port ? Math.min(port + PORT_RANGE - 1, 65535) : 0;
@@ -335,21 +335,52 @@ export async function startServer(review, options = {}) {
 }
 
 const openers = { darwin: 'open', linux: 'xdg-open' };
+
 /**
- * Opens the URL with each `$BROWSER` executable in turn, then the platform opener. In a remote
- * session the platform opener would open on the wrong machine, so it resolves false instead.
+ * Starts a `$BROWSER` helper without waiting for it: a browser started this way keeps running.
+ * Fails when the command cannot start or exits non-zero within `grace` ms.
+ */
+export function launchHelper(command, args, grace = 1500) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+    const timer = setTimeout(() => {
+      child.unref();
+      resolve();
+    }, grace);
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once('exit', (code, signal) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`${command} exited with ${signal || code}.`));
+    });
+  });
+}
+
+/** Splits one `$BROWSER` entry into a command and arguments; `%s` marks the URL, else it is appended. */
+function helperCommand(entry, url) {
+  const [command, ...args] = entry.trim().split(/\s+/);
+  const placed = args.some((arg) => arg.includes('%s'));
+  return [command, placed ? args.map((arg) => arg.replaceAll('%s', url)) : [...args, url]];
+}
+
+/**
+ * Opens the URL with each `$BROWSER` entry in turn, then the platform opener. In a remote session
+ * the platform opener would open on the wrong machine, so it resolves false instead.
  */
 export async function openBrowser(
   url,
   run = promisify(execFile),
   platform = process.platform,
   env = process.env,
+  launch = launchHelper,
 ) {
-  const options = { timeout: 10000, maxBuffer: 65536 };
   let failure;
-  for (const helper of (env.BROWSER || '').split(':').filter(Boolean)) {
+  for (const entry of (env.BROWSER || '').split(':').filter((item) => item.trim())) {
     try {
-      await run(helper, [url], options);
+      await launch(...helperCommand(entry, url));
       return true;
     } catch (error) {
       failure = error;
@@ -360,6 +391,6 @@ export async function openBrowser(
     return false;
   }
   if (!openers[platform]) throw new Error('Automatic opening supports macOS and Linux only.');
-  await run(openers[platform], [url], options);
+  await run(openers[platform], [url], { timeout: 10000, maxBuffer: 65536 });
   return true;
 }

@@ -147,11 +147,18 @@ const commands = {
         },
       );
     }
-    const handoff = opened
-      ? 'The browser is open.'
-      : access?.mode === 'tunnel'
-        ? 'Give the reviewer the url (keep it private) and access.command, which they run on their own machine first; the host is this machine and may need their own SSH name for it.'
-        : 'Give the reviewer the url (keep it private).';
+    const reach = {
+      tunnel:
+        ' and access.command, which they run on their own machine first; the host is this machine and may need their own SSH name for it',
+      forward: ` and tell them to forward port ${access?.port} from this container to their machine first (their editor's port forwarding, or host networking)`,
+      public: '',
+    };
+    // A helper can open a browser on this machine rather than the reviewer's, so remote handoffs keep the url.
+    const handoff = !access
+      ? opened
+        ? 'The browser is open.'
+        : 'Give the reviewer the url (keep it private).'
+      : `${opened ? "A browser helper opened the url, possibly not on the reviewer's machine. " : ''}Give the reviewer the url (keep it private)${reach[access.mode]}.`;
     print({
       status,
       change,

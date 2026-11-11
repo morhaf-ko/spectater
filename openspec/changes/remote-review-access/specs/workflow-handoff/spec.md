@@ -2,7 +2,7 @@
 
 ### Requirement: Exact-change opening
 
-The system SHALL open the review URL after the server is ready, on macOS and Linux, unless no-open mode is selected, trying the `$BROWSER` executables before the platform opener. In a remote session it MUST NOT run the platform opener. It MUST print the URL in every case and report discovery failure before opening a browser.
+The system SHALL open the review URL after the server is ready, on macOS and Linux, unless no-open mode is selected, launching `$BROWSER` entries without waiting for them to exit before trying the platform opener. In a remote session it MUST NOT run the platform opener. It MUST print the URL in every case and report discovery failure before opening a browser.
 
 #### Scenario: Normal invocation
 
@@ -16,8 +16,8 @@ The system SHALL open the review URL after the server is ready, on macOS and Lin
 
 #### Scenario: Browser helper
 
-- **WHEN** `$BROWSER` names an executable, as in a VS Code remote terminal
-- **THEN** open runs it with the review URL before the platform opener
+- **WHEN** `$BROWSER` names an executable, as in a VS Code remote terminal, or a browser command with arguments or `%s`
+- **THEN** open starts it with the review URL before the platform opener and returns while the browser keeps running
 
 #### Scenario: Headless host
 
@@ -62,12 +62,27 @@ The system SHALL treat a session as remote when `SPECTATER_REMOTE` says so, or, 
 
 ### Requirement: Remote access result
 
-For a remote session or an applicable public URL, `open` SHALL add an `access` object to its result: a tunnel command for the port in use, or the public mode. The system MUST NOT start, configure or require a tunnel, proxy or hosted service.
+For a remote session or an applicable public URL, `open` SHALL add an `access` object to its result: a tunnel command for the port in use, a forward mode inside a container, or the public mode, and its next step MUST keep the URL and access instructions even when a browser helper ran. The system MUST NOT start, configure or require a tunnel, proxy or hosted service.
 
 #### Scenario: Multiplexer pane
 
 - **WHEN** open runs on a headless Linux host inside a terminal multiplexer without SSH variables
 - **THEN** the result includes the tunnel command for the port in use
+
+#### Scenario: Container
+
+- **WHEN** open runs in a remote session inside a Docker or Podman container without SSH variables
+- **THEN** `access` has the forward mode and port and no SSH command
+
+#### Scenario: Helper on the wrong machine
+
+- **WHEN** a `$BROWSER` helper reports success in a remote session
+- **THEN** the next step still gives the reviewer the URL and access instructions
+
+#### Scenario: WSL
+
+- **WHEN** open runs in WSL without SSH variables or a display
+- **THEN** the session is local and the result has no `access` object
 
 #### Scenario: Local result
 
@@ -76,7 +91,7 @@ For a remote session or an applicable public URL, `open` SHALL add an `access` o
 
 ### Requirement: Public review URL
 
-The system SHALL use a configured public URL, or a codespace's forwarded-port URL, for every printed review URL when the server holds the matching port, and accept that host and origin. Agent commands MUST keep using loopback.
+The system SHALL use a configured public URL when the server holds the config's `port`, or a codespace's forwarded-port URL for the port in use, for the printed review URL, and accept that host and origin. Agent commands MUST keep using loopback.
 
 #### Scenario: Configured public URL
 
@@ -87,6 +102,11 @@ The system SHALL use a configured public URL, or a codespace's forwarded-port UR
 
 - **WHEN** `publicUrl` is set but the configured port is busy
 - **THEN** the review uses a fallback port with a loopback URL and `access` gives the tunnel command
+
+#### Scenario: Port override with a public URL
+
+- **WHEN** `publicUrl` and `port` are configured and `SPECTATER_PORT` names a different port
+- **THEN** the review uses a loopback URL on that port, since the proxy targets the configured port
 
 #### Scenario: Codespace
 
