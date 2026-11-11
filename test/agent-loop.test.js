@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import http from 'node:http';
 import path from 'node:path';
 import { test } from 'node:test';
 import { cli, launchFixture } from '../scripts/cli-fixture.js';
@@ -350,4 +351,58 @@ test('the serve process exits cleanly on SIGTERM and removes its record', async 
   const [code] = await once(child, 'exit');
   assert.equal(code, 0);
   assert.deepEqual(await listServers(f.stateDir), []);
+});
+
+test('remote open reports tunnel access on a stable port; a public URL is printed but agents stay on loopback', async (t) => {
+  const f = await fixture();
+  const free = http.createServer();
+  await new Promise((resolve) => free.listen(0, '127.0.0.1', resolve));
+  const port = free.address().port;
+  await new Promise((resolve) => free.close(resolve));
+  const remote = cli(bin, f, {
+    SSH_CONNECTION: '10.0.0.2 5000 10.0.0.1 22',
+    SPECTATER_PORT: String(port),
+  });
+  t.after(async () => {
+    await remote(['stop', 'example']).catch(() => {});
+    while ((await listServers(f.stateDir)).length) await new Promise((r) => setTimeout(r, 50));
+    await f.cleanup();
+  });
+  const opened = JSON.parse((await remote(['open', 'example'])).stdout);
+  assert.equal(opened.opened, false, 'no platform opener in a remote session');
+  const helper = path.join(f.directory, 'browser-helper');
+  await writeFile(helper, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
+  const helped = JSON.parse(
+    (
+      await cli(bin, f, {
+        SSH_CONNECTION: '10.0.0.2 5000 10.0.0.1 22',
+        SPECTATER_PORT: String(port),
+        BROWSER: helper,
+      })(['open', 'example'])
+    ).stdout,
+  );
+  assert.deepEqual([helped.status, helped.opened, helped.url], ['reused', true, opened.url]);
+  assert.match(helped.next_step, /possibly not on the reviewer's machine.*access\.command/);
+  assert.equal(new URL(opened.url).port, String(port));
+  assert.deepEqual([opened.access.mode, opened.access.port], ['tunnel', port]);
+  assert.match(
+    opened.access.command,
+    new RegExp(`^ssh -N -L ${port}:127\\.0\\.0\\.1:${port} \\S+$`),
+  );
+  assert.match(opened.next_step, /access\.command/);
+  const reused = JSON.parse((await remote(['open', 'example', '--no-open'])).stdout);
+  assert.deepEqual([reused.status, reused.access], ['reused', opened.access]);
+  await remote(['stop', 'example']);
+  while ((await listServers(f.stateDir)).length) await new Promise((r) => setTimeout(r, 50));
+
+  await writeFile(f.configFile, JSON.stringify({ port, publicUrl: 'https://forge.example.test' }));
+  const proxied = JSON.parse((await remote(['open', 'example', '--no-open'])).stdout);
+  assert.match(proxied.url, /^https:\/\/forge\.example\.test\/review\/example#[a-f0-9]{64}$/);
+  assert.deepEqual(proxied.access, { mode: 'public', port });
+  const [record] = await listServers(f.stateDir);
+  assert.equal(record.url, `http://127.0.0.1:${port}/review/example${new URL(proxied.url).hash}`);
+  assert.equal(
+    JSON.parse((await remote(['wait', 'example', '--timeout', '0'])).stdout).status,
+    'timeout',
+  );
 });
