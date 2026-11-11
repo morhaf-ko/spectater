@@ -45,12 +45,16 @@ async function readJson(request) {
 }
 
 const loopbackHost = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d{1,5})?$/;
-const loopbackAddress = (address = '') => address === '::1' || /^(?:::ffff:)?127\./.test(address);
+// Sockets accepted by a tailnet listener; every other socket reached the loopback bind.
+const tailnetSockets = new WeakSet();
 
 /** Hands connections on the tailnet address to the loopback HTTP server. */
 function listenTailnet(server, address, port) {
-  const listener = net.createServer((socket) => server.emit('connection', socket));
-  // The HTTP server's own cap only counts sockets it accepted itself.
+  const listener = net.createServer((socket) => {
+    tailnetSockets.add(socket);
+    server.emit('connection', socket);
+  });
+  // The HTTP server's cap counts only its own sockets, so the tailnet gets a separate cap of its own.
   listener.maxConnections = server.maxConnections;
   return new Promise((resolve, reject) => {
     listener.once('error', reject);
@@ -257,7 +261,8 @@ export async function startServer(review, options = {}) {
       // Loopback names on any port admit SSH and editor forwards; DNS rebinding sends the attacker's name.
       const host = (request.headers.host || '').toLowerCase();
       // Loopback names are trusted only on loopback sockets, never on the tailnet listener.
-      const loopback = loopbackHost.test(host) && loopbackAddress(request.socket.localAddress);
+      const local = !tailnetSockets.has(request.socket);
+      const loopback = local && loopbackHost.test(host);
       if (!loopback && host !== (external && new URL(external).host))
         return send(403, { error: 'Invalid Host.' });
       const requestOrigin = request.headers.origin;
@@ -313,8 +318,7 @@ export async function startServer(review, options = {}) {
       if (request.method === 'GET' && batchMatch && /^[a-f0-9-]{36}$/.test(batchMatch))
         return send(200, { markdown: feedbackMarkdown(feedback(review.state, batchMatch)) });
       const operation = url.pathname.startsWith('/agent/') && url.pathname.slice('/agent/'.length);
-      if (operation && !loopbackAddress(request.socket.localAddress))
-        return send(403, { error: 'Agent commands use loopback.' });
+      if (operation && !local) return send(403, { error: 'Agent commands use loopback.' });
       const browserMutation = [`${route}/refresh`, `${route}/action`].includes(url.pathname);
       if (
         request.method !== 'POST' ||

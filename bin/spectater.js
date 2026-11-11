@@ -123,6 +123,8 @@ async function listing(directory, { cwd, hook } = {}) {
 const commands = {
   async open(values, change) {
     const { config, directory, options } = await context(values, change);
+    // Validates SPECTATER_REMOTE before a server starts.
+    const remote = remoteSession();
     const found = await locate(options, directory);
     let record = found.record;
     let status = 'reused';
@@ -148,7 +150,7 @@ const commands = {
     if (!values['no-open'] && config.openBrowser) {
       const { openBrowser } = await import('../src/server.js');
       // A browser on this machine uses loopback, which works even where MagicDNS does not resolve.
-      opened = await openBrowser(remoteSession() ? url : record.url).then(
+      opened = await openBrowser(remote ? url : record.url).then(
         (result) => result,
         (error) => {
           process.stderr.write(`Browser opening failed: ${error.message}\n`);

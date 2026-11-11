@@ -700,4 +700,32 @@ test('a tailnet address adds a listener and a public URL; agent routes stay on l
     403,
     'foreign host refused',
   );
+  assert.equal(
+    await request('127.0.0.2', external.pathname, { Host: `127.0.0.1:${server.port}` }),
+    403,
+    'loopback names are not trusted on the tailnet listener',
+  );
+  const agent = await new Promise((resolve, reject) =>
+    http
+      .request(
+        {
+          host: '127.0.0.2',
+          port: server.port,
+          path: '/agent/status',
+          method: 'POST',
+          headers: {
+            Host: external.host,
+            Authorization: `Bearer ${external.hash.slice(1)}`,
+            'Content-Type': 'application/json',
+          },
+        },
+        (response) => {
+          response.resume();
+          resolve(response.statusCode);
+        },
+      )
+      .on('error', reject)
+      .end('{}'),
+  );
+  assert.equal(agent, 403, 'agent routes refused over the tailnet');
 });
