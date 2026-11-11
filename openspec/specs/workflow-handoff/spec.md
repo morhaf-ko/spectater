@@ -198,7 +198,7 @@ The system MUST NOT interpret comments, submission, artifact status or task comp
 
 ### Requirement: Detached review server
 
-The system SHALL start the review server as a detached process from `open` and return once it is ready. It SHALL record the server's port and an agent token in a private owner-only file in the state directory; on Windows the state directory MUST be inside the user profile, whose access control keeps it owner-only. The server MUST stop after a configurable idle period with no browser connection and no listener, and on an explicit stop command. A recorded server whose process no longer exists MUST be replaced on the next open.
+The system SHALL start the review server as a detached process from `open` and return once it is ready. It SHALL record the server's port and an agent token in a private owner-only file in the state directory, which on Windows MUST be inside the user profile. The server MUST stop after a configurable idle period with no browser connection and no listener, and on an explicit stop command. A recorded server whose process no longer exists MUST be replaced on the next open.
 
 #### Scenario: Open returns
 
@@ -286,7 +286,7 @@ The system SHALL report a missing OpenSpec CLI with its install command, pass th
 
 ### Requirement: Stable review port
 
-The system SHALL treat a session as remote when `SPECTATER_REMOTE` says so, or, when it is unset, when SSH session variables are set, the surrounding tmux session was last attached over SSH, a codespace is detected, or it runs on Linux without a display outside WSL. It SHALL bind a preferred port from configuration or `SPECTATER_PORT`, or a documented default in a remote session, falling back to the next free port in a bounded range. It MUST bind loopback, plus only the tailnet address described in Tailnet review URL.
+The system SHALL treat a session as remote when `SPECTATER_REMOTE` says so, or, when it is unset, when SSH session variables are set, tmux was last attached over SSH, a codespace is detected, or it runs on Linux without a display outside WSL. It SHALL bind a preferred port from configuration or `SPECTATER_PORT`, or a documented default in a remote session, falling back to the next free port in a bounded range. It MUST bind only loopback and the Tailnet review URL address.
 
 #### Scenario: Stable port across reviews
 
