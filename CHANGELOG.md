@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.5.0...spectater-v0.6.0) (2026-11-11)
+
+
+### Features
+
+* support Windows, tmux over SSH, Tailscale review URLs and Herdr notifications ([#23](https://github.com/morhaf-ko/spectater/issues/23)) ([5ed5ccd](https://github.com/morhaf-ko/spectater/commit/5ed5ccd5c6f95f6377d502c4064cf098ac5fae55))
+
 ## [0.5.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.4.0...spectater-v0.5.0) (2026-11-11)
 
 
