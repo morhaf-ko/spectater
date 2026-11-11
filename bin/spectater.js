@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
+import { accessFor, preferredPort, publicOrigin } from '../src/access.js';
 import {
   agentRequest,
   listServers,
@@ -46,7 +47,8 @@ const workflow = `Review loop:
 1. Write or revise the OpenSpec change and run \`openspec validate <change>\`.
 2. spectater open <change>
    Starts the review server in the background and opens the browser when one is available.
-   No browser is needed: give the user the printed URL, and only to them.
+   No browser is needed: give the user the printed URL, and only to them. When the result has
+   "access", the user's browser is on another machine; pass on its tunnel command with the URL.
 3. spectater wait <change>
    Blocks until the reviewer submits feedback. Prints one JSON object; act on "status":
    - batch:            feedback is in "batch". Continue with step 4.
@@ -132,23 +134,31 @@ const commands = {
       );
       status = 'ready';
     }
+    const url = record.publicUrl || record.url;
+    const access = accessFor(record, config);
     let opened = false;
     if (!values['no-open'] && config.openBrowser) {
       const { openBrowser } = await import('../src/server.js');
-      opened = await openBrowser(record.url).then(
-        () => true,
+      opened = await openBrowser(url).then(
+        (result) => result,
         (error) => {
           process.stderr.write(`Browser opening failed: ${error.message}\n`);
           return false;
         },
       );
     }
+    const handoff = opened
+      ? 'The browser is open.'
+      : access?.mode === 'tunnel'
+        ? 'Give the reviewer the url (keep it private) and access.command, which they run on their own machine first; the host is this machine and may need their own SSH name for it.'
+        : 'Give the reviewer the url (keep it private).';
     print({
       status,
       change,
-      url: record.url,
+      url,
       opened,
-      next_step: `${opened ? 'The browser is open.' : 'Give the reviewer the url (keep it private).'} Run: spectater wait ${change}`,
+      ...(access && { access }),
+      next_step: `${handoff} Run: spectater wait ${change}`,
     });
   },
 
@@ -181,11 +191,19 @@ const commands = {
       const idle = Number(process.env.SPECTATER_IDLE_TIMEOUT ?? 1800);
       if (!Number.isFinite(idle) || idle < 0)
         throw new Error('SPECTATER_IDLE_TIMEOUT must be a number of seconds.');
-      server = await startServer(review, { idleTimeout: idle * 1000, onIdle: stop, onStop: stop });
+      server = await startServer(review, {
+        idleTimeout: idle * 1000,
+        onIdle: stop,
+        onStop: stop,
+        port: preferredPort(config),
+        publicOrigin: (port) => publicOrigin(config, port),
+      });
       await writeServer(directory, {
         reviewId: manifest.reviewId,
         pid: process.pid,
         url: server.url,
+        port: server.port,
+        ...(server.publicUrl && { publicUrl: server.publicUrl }),
         change: manifest.change,
         root: manifest.root,
         startedAt: new Date().toISOString(),

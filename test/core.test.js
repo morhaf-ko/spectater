@@ -447,12 +447,142 @@ test('local HTTP boundary rejects unauthorized, foreign, oversized and arbitrary
   assert.equal((await response.json()).documents[0].source, sample);
 });
 
+function request(url, headers, method = 'GET') {
+  return new Promise((resolve, reject) => {
+    const outgoing = http.request(url, { method, headers }, (response) => {
+      response.resume();
+      resolve(response.statusCode);
+    });
+    outgoing.on('error', reject);
+    outgoing.end(method === 'POST' ? '{}' : undefined);
+  });
+}
+
+test('forwarded loopback hosts and the public origin are accepted; other origins are refused', async (t) => {
+  const f = await fixture();
+  const r = await openReview(f.options, { directory: f.stateDir });
+  const server = await startServer(r, { publicOrigin: () => 'https://review.example.test' });
+  t.after(async () => {
+    await server.close();
+    await f.cleanup();
+  });
+  const token = `Bearer ${new URL(server.url).hash.slice(1)}`;
+  const state = `${server.origin}${server.route}/state`;
+  const action = `${server.origin}${server.route}/action`;
+  const json = { Authorization: token, 'Content-Type': 'application/json' };
+  assert.equal(
+    server.publicUrl,
+    `https://review.example.test${server.route}${new URL(server.url).hash}`,
+  );
+  for (const host of [
+    `localhost:${server.port}`,
+    'localhost:9000',
+    '127.0.0.1:9000',
+    'review.example.test',
+  ])
+    assert.equal(await request(state, { Authorization: token, Host: host }), 200, host);
+  assert.equal(
+    await request(state, {
+      Authorization: token,
+      Host: 'localhost:9000',
+      Origin: 'http://localhost:9000',
+    }),
+    200,
+  );
+  assert.equal(
+    await request(state, {
+      Authorization: token,
+      Host: 'localhost:9000',
+      Origin: 'http://localhost:3000',
+    }),
+    403,
+    'another loopback origin',
+  );
+  assert.equal(await request(state, { Authorization: token, Host: 'evil.test:9000' }), 403);
+  assert.equal(await request(state, { Authorization: token, Host: 'localhost.evil.test' }), 403);
+  assert.equal(
+    await request(
+      action,
+      { ...json, Host: 'review.example.test', Origin: 'https://review.example.test' },
+      'POST',
+    ),
+    400,
+    'public origin reaches the mutation handler',
+  );
+  assert.equal(
+    await request(action, { ...json, Host: 'localhost:9000' }, 'POST'),
+    403,
+    'mutation needs Origin',
+  );
+  assert.equal(
+    await request(
+      action,
+      { ...json, Host: 'localhost:9000', Origin: 'https://review.example.test.evil' },
+      'POST',
+    ),
+    403,
+  );
+});
+
+test('a busy preferred port falls back within the range and reports the bound port', async (t) => {
+  const f = await fixture();
+  const blocker = http.createServer();
+  await new Promise((resolve) => blocker.listen(0, '127.0.0.1', resolve));
+  const busy = blocker.address().port;
+  const r = await openReview(f.options, { directory: f.stateDir });
+  const server = await startServer(r, {
+    port: busy,
+    publicOrigin: (port) => (port === busy ? 'https://p.example.test' : undefined),
+  });
+  t.after(async () => {
+    await server.close();
+    blocker.close();
+    await f.cleanup();
+  });
+  assert.ok(server.port > busy && server.port < busy + 10);
+  assert.equal(server.origin, `http://127.0.0.1:${server.port}`);
+  assert.equal(server.publicUrl, undefined);
+});
+
+test('browser opener tries $BROWSER first and skips headless Linux without one', async () => {
+  const calls = [];
+  const record = async (...args) => calls.push(args);
+  assert.equal(await openBrowser('http://u', record, 'linux', { BROWSER: '/opt/helper' }), true);
+  assert.deepEqual(calls.at(-1).slice(0, 2), ['/opt/helper', ['http://u']]);
+  const failing = async (command, args) => {
+    calls.push([command, args]);
+    if (command !== '/opt/second') throw new Error(`${command} failed`);
+  };
+  assert.equal(
+    await openBrowser('http://u', failing, 'linux', { BROWSER: '/opt/first:/opt/second' }),
+    true,
+  );
+  assert.deepEqual(
+    calls.slice(-2).map(([command]) => command),
+    ['/opt/first', '/opt/second'],
+  );
+  calls.length = 0;
+  assert.equal(await openBrowser('http://u', record, 'linux', {}), false);
+  assert.deepEqual(calls, [], 'no opener on a headless host');
+  await assert.rejects(
+    openBrowser('http://u', failing, 'linux', { BROWSER: '/opt/first' }),
+    /first failed/,
+  );
+  const fallback = async (command) => {
+    if (command === '/opt/first') throw new Error('first failed');
+    calls.push([command]);
+  };
+  assert.equal(await openBrowser('http://u', fallback, 'darwin', { BROWSER: '/opt/first' }), true);
+  assert.deepEqual(calls.at(-1), ['open'], 'a failed helper falls back to the platform opener');
+});
+
 test('browser opener uses exact argument and reports failure without shell execution', async () => {
   const calls = [];
   await openBrowser(
     'http://127.0.0.1:1/review/test#cap',
     async (...args) => calls.push(args),
     'darwin',
+    {},
   );
   assert.deepEqual(calls[0].slice(0, 2), ['open', ['http://127.0.0.1:1/review/test#cap']]);
   await assert.rejects(
@@ -462,10 +592,11 @@ test('browser opener uses exact argument and reports failure without shell execu
         throw new Error('forced opener failure');
       },
       'darwin',
+      {},
     ),
     /forced/,
   );
-  await openBrowser('http://x', async (...args) => calls.push(args), 'linux');
+  await openBrowser('http://x', async (...args) => calls.push(args), 'linux', { DISPLAY: ':0' });
   assert.equal(calls.at(-1)[0], 'xdg-open');
-  await assert.rejects(openBrowser('http://example', undefined, 'win32'), /macOS and Linux/);
+  await assert.rejects(openBrowser('http://example', undefined, 'win32', {}), /macOS and Linux/);
 });

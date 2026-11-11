@@ -4,6 +4,16 @@ import { promisify } from 'node:util';
 import { listServers } from '../src/agent.js';
 import { alive } from '../src/storage.js';
 
+/** A local desktop session, so results do not depend on whether the test host looks remote. */
+export const localSession = {
+  SSH_CONNECTION: '',
+  SSH_TTY: '',
+  CODESPACES: '',
+  BROWSER: '',
+  DISPLAY: ':0',
+  SPECTATER_PORT: '',
+};
+
 /** Runs the CLI against a test fixture's project, state directory and config. */
 export function cli(bin, f, env = {}) {
   const entry = path.resolve(bin);
@@ -14,6 +24,7 @@ export function cli(bin, f, env = {}) {
         ...process.env,
         SPECTATER_STATE_DIR: f.stateDir,
         SPECTATER_CONFIG: f.configFile,
+        ...localSession,
         ...env,
       },
       timeout: 60000,

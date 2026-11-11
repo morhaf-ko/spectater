@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { PORT_RANGE } from './access.js';
 import { feedback, feedbackMarkdown } from './storage.js';
 import { watchChange } from './watch.js';
 
@@ -42,16 +43,51 @@ async function readJson(request) {
   return input;
 }
 
+const loopbackHost = /^(?:127\.0\.0\.1|localhost):\d{1,5}$/;
+
+async function listen(server, port) {
+  const last = port ? Math.min(port + PORT_RANGE - 1, 65535) : 0;
+  for (let candidate = port; ; candidate++) {
+    try {
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(candidate, '127.0.0.1', () => {
+          server.off('error', reject);
+          resolve();
+        });
+      });
+      return;
+    } catch (error) {
+      if (error.code !== 'EADDRINUSE' || candidate >= last) {
+        if (error.code === 'EADDRINUSE')
+          throw new Error(
+            `Ports ${port}–${last} are in use. Stop a review or choose another port.`,
+          );
+        throw error;
+      }
+    }
+  }
+}
+
 /**
  * Serves one review to the browser (capability in the URL fragment) and to agent commands
  * (`/agent/*`, same capability). `onIdle` fires after `idleTimeout` ms with no browser stream
- * and no waiting agent; `onStop` fires after an agent stop request is answered.
+ * and no waiting agent; `onStop` fires after an agent stop request is answered. `port` is tried
+ * first with a small fallback range (0 picks a random port); `publicOrigin(port)` names the
+ * proxied origin the reviewer uses for the bound port, if any.
  */
 export async function startServer(review, options = {}) {
-  const { watch = true, idleTimeout = 0, onIdle = () => {}, onStop = () => {} } = options;
+  const {
+    watch = true,
+    idleTimeout = 0,
+    onIdle = () => {},
+    onStop = () => {},
+    port = 0,
+    publicOrigin = () => undefined,
+  } = options;
   const capability = randomBytes(32).toString('hex');
   const route = `/review/${encodeURIComponent(review.view().change)}`;
-  let origin;
+  let origin, external;
   let watchStatus = { automatic: false };
   let watcher,
     stopping = false,
@@ -177,10 +213,16 @@ export async function startServer(review, options = {}) {
       response.end(type === 'application/json' ? JSON.stringify(data) : data);
     };
     try {
-      if (request.headers.host !== new URL(origin).host)
+      // Loopback names on any port admit SSH and editor forwards; DNS rebinding sends the attacker's name.
+      const host = (request.headers.host || '').toLowerCase();
+      const loopback = loopbackHost.test(host);
+      if (!loopback && host !== (external && new URL(external).host))
         return send(403, { error: 'Invalid Host.' });
-      if (request.headers.origin && request.headers.origin !== origin)
-        return send(403, { error: 'Foreign origin refused.' });
+      const requestOrigin = request.headers.origin;
+      const sameOrigin =
+        requestOrigin &&
+        (requestOrigin === external || (loopback && requestOrigin === `http://${host}`));
+      if (requestOrigin && !sameOrigin) return send(403, { error: 'Foreign origin refused.' });
       if (request.headers['sec-fetch-site'] === 'cross-site')
         return send(403, { error: 'Cross-site request refused.' });
       const url = new URL(request.url, origin);
@@ -236,7 +278,7 @@ export async function startServer(review, options = {}) {
       )
         return send(404, { error: 'Unknown route.' });
       if (
-        (browserMutation && request.headers.origin !== origin) ||
+        (browserMutation && !sameOrigin) ||
         request.headers['content-type'] !== 'application/json'
       )
         return send(403, { error: 'Mutation requires this review origin and JSON.' });
@@ -260,11 +302,10 @@ export async function startServer(review, options = {}) {
   server.requestTimeout = 20000;
   server.headersTimeout = 10000;
   server.maxConnections = 32;
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
-  });
-  origin = `http://127.0.0.1:${server.address().port}`;
+  await listen(server, port);
+  const bound = server.address().port;
+  origin = `http://127.0.0.1:${bound}`;
+  external = publicOrigin(bound);
   const url = `${origin}${route}#${capability}`;
   await syncWatcher();
   touch();
@@ -272,6 +313,8 @@ export async function startServer(review, options = {}) {
     url,
     origin,
     route,
+    port: bound,
+    publicUrl: external && `${external}${route}#${capability}`,
     async close() {
       stopping = true;
       clearTimeout(idleTimer);
@@ -292,7 +335,31 @@ export async function startServer(review, options = {}) {
 }
 
 const openers = { darwin: 'open', linux: 'xdg-open' };
-export async function openBrowser(url, run = promisify(execFile), platform = process.platform) {
+/**
+ * Opens the URL with each `$BROWSER` executable in turn, then the platform opener. Resolves false
+ * without running anything on Linux with no display and no `$BROWSER`.
+ */
+export async function openBrowser(
+  url,
+  run = promisify(execFile),
+  platform = process.platform,
+  env = process.env,
+) {
+  const options = { timeout: 10000, maxBuffer: 65536 };
+  let failure;
+  for (const helper of (env.BROWSER || '').split(':').filter(Boolean)) {
+    try {
+      await run(helper, [url], options);
+      return true;
+    } catch (error) {
+      failure = error;
+    }
+  }
+  if (platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY) {
+    if (failure) throw failure;
+    return false;
+  }
   if (!openers[platform]) throw new Error('Automatic opening supports macOS and Linux only.');
-  await run(openers[platform], [url], { timeout: 10000, maxBuffer: 65536 });
+  await run(openers[platform], [url], options);
+  return true;
 }
