@@ -60,7 +60,7 @@ The system SHALL default to the operating system color scheme and allow explicit
 
 ### Requirement: Optional reader preferences
 
-The system SHALL provide built-in defaults without requiring a configuration file. It SHALL allow an optional user-selected configuration to choose the initial document view, browser-opening preference and private state location. It MUST reject invalid settings visibly and MUST NOT expose settings that disable filesystem, browser or revision protections.
+The system SHALL provide built-in defaults without requiring a configuration file. It SHALL allow an optional user-selected configuration to choose the initial document view, browser-opening preference, private state location, preferred server port and public URL. It MUST reject invalid settings visibly and MUST NOT expose settings that disable filesystem, browser, host or revision protections.
 
 #### Scenario: No configuration
 
@@ -75,6 +75,11 @@ The system SHALL provide built-in defaults without requiring a configuration fil
 #### Scenario: Invalid preferences
 
 - **WHEN** a selected configuration has invalid syntax, unknown settings or unsupported values
+- **THEN** the command reports the configuration error and does not start a review
+
+#### Scenario: Invalid public URL
+
+- **WHEN** `publicUrl` has a path, query, fragment, credentials or a scheme other than http or https, or is set without `port`
 - **THEN** the command reports the configuration error and does not start a review
 
 ### Requirement: Native discovery
@@ -131,7 +136,7 @@ The system SHALL render Markdown deterministically from exact document snapshots
 
 ### Requirement: Bounded local access
 
-The system SHALL serve only the selected manifest on loopback and authorize review requests with a per-process capability. It MUST reject foreign mutation origins, forged hosts, unauthorized requests, oversized input and filesystem paths outside the selected change.
+The system SHALL serve only the selected manifest on loopback and authorize review requests with a per-process capability. It MUST reject unaccepted hosts, foreign mutation origins, unauthorized requests, oversized input and filesystem paths outside the selected change.
 
 #### Scenario: Cross-site write
 
@@ -147,3 +152,17 @@ The system SHALL serve only the selected manifest on loopback and authorize revi
 
 - **WHEN** the operator interrupts the process
 - **THEN** the listener closes, acknowledged review state remains and no login daemon or repository scanner is left running
+
+### Requirement: Accepted hosts and origins
+
+The system SHALL accept requests whose host is `127.0.0.1`, `localhost` or `[::1]` with any port or none, or the host of the active public URL. It MUST require any request origin to equal the request's own loopback host or the active public origin.
+
+#### Scenario: Forwarded loopback address
+
+- **WHEN** the reviewer opens the review through a port forward that presents `localhost` or a different local port
+- **THEN** the review loads and accepts feedback with the capability
+
+#### Scenario: Rebound hostname
+
+- **WHEN** a request arrives with a non-loopback host that is not the active public URL's host
+- **THEN** the server refuses it without serving review data
