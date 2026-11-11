@@ -25,4 +25,4 @@
 
 - [x] 5.1 Document remote access (SSH `LocalForward`, VS Code, `tailscale serve --bg --https=47420 http://127.0.0.1:47420`, codespaces), the new settings, `SPECTATER_PORT` and the `access` field in README, and the accepted hosts and public URL exposure in SECURITY.md.
 - [x] 5.2 Smoke a review through an SSH forward with a remapped local port and through `tailscale serve`, confirming the reader loads, live updates stream and feedback submits; record the outcome in the pull request.
-- [ ] 5.3 Run `bun run check`.
+- [x] 5.3 Run `bun run check`.
