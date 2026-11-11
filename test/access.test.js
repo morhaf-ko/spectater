@@ -3,6 +3,8 @@ import os from 'node:os';
 import { test } from 'node:test';
 import {
   accessFor,
+  containerized,
+  handoffFor,
   preferredPort,
   publicOrigin,
   REMOTE_PORT,
@@ -97,4 +99,31 @@ test('access names the tunnel for remote sessions and the public mode for proxie
     `ssh -N -L 47422:127.0.0.1:47422 ${host}`,
     'a public URL that did not apply falls back to a tunnel',
   );
+});
+
+test('handoff keeps the url and access instructions for every remote mode, even after a helper ran', () => {
+  assert.equal(handoffFor(undefined, true), 'The browser is open.');
+  assert.equal(handoffFor(undefined, false), 'Give the reviewer the url (keep it private).');
+  const tunnel = { mode: 'tunnel', port: 47420, command: 'ssh -N -L 47420:127.0.0.1:47420 h' };
+  assert.match(handoffFor(tunnel, false), /^Give the reviewer the url .*access\.command/);
+  assert.match(
+    handoffFor(tunnel, true),
+    /^A browser helper opened the url, possibly not .*access\.command/,
+  );
+  assert.match(
+    handoffFor({ mode: 'forward', port: 47421 }, false),
+    /forward port 47421 from this container/,
+  );
+  assert.equal(
+    handoffFor({ mode: 'public', port: 47420 }, false),
+    'Give the reviewer the url (keep it private).',
+  );
+  assert.match(
+    handoffFor({ mode: 'public', port: 47420 }, true),
+    /possibly not on the reviewer's machine/,
+  );
+});
+
+test('Kubernetes pods count as containers', () => {
+  assert.equal(containerized({ KUBERNETES_SERVICE_HOST: '10.0.0.1' }), true);
 });

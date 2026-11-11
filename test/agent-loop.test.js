@@ -368,7 +368,21 @@ test('remote open reports tunnel access on a stable port; a public URL is printe
     while ((await listServers(f.stateDir)).length) await new Promise((r) => setTimeout(r, 50));
     await f.cleanup();
   });
-  const opened = JSON.parse((await remote(['open', 'example', '--no-open'])).stdout);
+  const opened = JSON.parse((await remote(['open', 'example'])).stdout);
+  assert.equal(opened.opened, false, 'no platform opener in a remote session');
+  const helper = path.join(f.directory, 'browser-helper');
+  await writeFile(helper, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
+  const helped = JSON.parse(
+    (
+      await cli(bin, f, {
+        SSH_CONNECTION: '10.0.0.2 5000 10.0.0.1 22',
+        SPECTATER_PORT: String(port),
+        BROWSER: helper,
+      })(['open', 'example'])
+    ).stdout,
+  );
+  assert.deepEqual([helped.status, helped.opened, helped.url], ['reused', true, opened.url]);
+  assert.match(helped.next_step, /possibly not on the reviewer's machine.*access\.command/);
   assert.equal(new URL(opened.url).port, String(port));
   assert.deepEqual([opened.access.mode, opened.access.port], ['tunnel', port]);
   assert.match(

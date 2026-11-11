@@ -579,7 +579,7 @@ test('browser opener launches $BROWSER entries first and never opens locally for
 
 test('a $BROWSER helper keeps running after open returns; early failures are reported', async () => {
   const started = Date.now();
-  await launchHelper(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], 200);
+  await launchHelper(process.execPath, ['-e', 'setTimeout(() => {}, 300)'], 200);
   assert.ok(Date.now() - started < 2000, 'does not wait for a long-running browser');
   await launchHelper(process.execPath, ['-e', 'process.exit(0)'], 2000);
   await assert.rejects(

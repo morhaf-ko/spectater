@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import { accessFor, preferredPort, publicOrigin } from '../src/access.js';
+import { accessFor, handoffFor, preferredPort, publicOrigin } from '../src/access.js';
 import {
   agentRequest,
   listServers,
@@ -147,18 +147,7 @@ const commands = {
         },
       );
     }
-    const reach = {
-      tunnel:
-        ' and access.command, which they run on their own machine first; the host is this machine and may need their own SSH name for it',
-      forward: ` and tell them to forward port ${access?.port} from this container to their machine first (their editor's port forwarding, or host networking)`,
-      public: '',
-    };
-    // A helper can open a browser on this machine rather than the reviewer's, so remote handoffs keep the url.
-    const handoff = !access
-      ? opened
-        ? 'The browser is open.'
-        : 'Give the reviewer the url (keep it private).'
-      : `${opened ? "A browser helper opened the url, possibly not on the reviewer's machine. " : ''}Give the reviewer the url (keep it private)${reach[access.mode]}.`;
+    const handoff = handoffFor(access, opened);
     print({
       status,
       change,

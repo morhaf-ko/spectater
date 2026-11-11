@@ -27,9 +27,11 @@ export function remoteSession(env = process.env, platform = process.platform) {
   return platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY;
 }
 
-/** True inside a Docker or Podman container, where an SSH tunnel to the hostname cannot work. */
-export function containerized() {
-  return existsSync('/.dockerenv') || existsSync('/run/.containerenv');
+/** True inside a container or pod, where an SSH tunnel to the hostname cannot work. */
+export function containerized(env = process.env) {
+  return Boolean(
+    env.KUBERNETES_SERVICE_HOST || existsSync('/.dockerenv') || existsSync('/run/.containerenv'),
+  );
 }
 
 export function parsePort(value, source) {
@@ -66,7 +68,7 @@ export function accessFor(
   config,
   env = process.env,
   platform = process.platform,
-  inContainer = containerized(),
+  inContainer = containerized(env),
 ) {
   const port = record.port ?? Number(new URL(record.url).port);
   if (record.publicUrl) return { mode: 'public', port };
@@ -74,4 +76,21 @@ export function accessFor(
   if (inContainer && !env.SSH_CONNECTION && !env.SSH_TTY) return { mode: 'forward', port };
   const host = os.hostname().split('.')[0] || 'this-host';
   return { mode: 'tunnel', port, command: `ssh -N -L ${port}:127.0.0.1:${port} ${host}` };
+}
+
+/** The `next_step` handoff before `Run: spectater wait`. */
+export function handoffFor(access, opened) {
+  if (!access)
+    return opened ? 'The browser is open.' : 'Give the reviewer the url (keep it private).';
+  const reach = {
+    tunnel:
+      ' and access.command, which they run on their own machine first; the host is this machine and may need their own SSH name for it',
+    forward: ` and tell them to forward port ${access.port} from this container to their machine first (their editor's port forwarding, or host networking)`,
+    public: '',
+  }[access.mode];
+  // A helper can open a browser on this machine rather than the reviewer's, so remote handoffs keep the url.
+  const helper = opened
+    ? "A browser helper opened the url, possibly not on the reviewer's machine. "
+    : '';
+  return `${helper}Give the reviewer the url (keep it private)${reach}.`;
 }

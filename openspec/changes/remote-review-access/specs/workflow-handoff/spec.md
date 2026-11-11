@@ -33,7 +33,7 @@ The system SHALL open the review URL after the server is ready, on macOS and Lin
 
 ### Requirement: Stable review port
 
-The system SHALL treat a session as remote when `SPECTATER_REMOTE` says so, or, when it is unset, when SSH session variables are set, a codespace is detected, or it runs on Linux without a display. It SHALL bind a preferred port from configuration or `SPECTATER_PORT`, or a documented default in a remote session, falling back to the next free port in a bounded range. It MUST keep binding loopback only.
+The system SHALL treat a session as remote when `SPECTATER_REMOTE` says so, or, when it is unset, when SSH session variables are set, a codespace is detected, or it runs on Linux without a display outside WSL. It SHALL bind a preferred port from configuration or `SPECTATER_PORT`, or a documented default in a remote session, falling back to the next free port in a bounded range. It MUST keep binding loopback only.
 
 #### Scenario: Stable port across reviews
 
