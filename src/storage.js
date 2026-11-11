@@ -10,10 +10,29 @@ export function stateDirectory() {
   if (process.env.SPECTATER_STATE_DIR) return path.resolve(process.env.SPECTATER_STATE_DIR);
   if (process.platform === 'darwin')
     return path.join(os.homedir(), 'Library', 'Application Support', 'SpecTater');
+  if (process.platform === 'win32')
+    return path.join(
+      process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+      'SpecTater',
+    );
   return path.join(
     process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state'),
     'spectater',
   );
+}
+
+const windows = process.platform === 'win32';
+// Windows paths compare case-insensitively.
+const samePath = (a, b) => (windows ? a.toLowerCase() === b.toLowerCase() : a === b);
+
+/**
+ * True for a regular file only this user can read. NTFS reports no POSIX owner or mode, so on
+ * Windows privacy comes from the user profile's ACL that `privateDirectory` requires.
+ */
+export function privateFile(stat) {
+  if (!stat.isFile()) return false;
+  if (windows) return true;
+  return !(stat.mode & 0o077) && stat.uid === process.getuid();
 }
 
 export async function privateDirectory(directory) {
@@ -25,12 +44,17 @@ export async function privateDirectory(directory) {
     (process.getuid && stat.uid !== process.getuid())
   )
     throw new Error('Review storage must be an owned private directory.');
-  if (process.platform === 'win32')
-    throw new Error(
-      'Private Windows storage is not verified; this release supports macOS/Linux permissions only.',
-    );
-  if ((await realpath(directory)) !== path.resolve(directory))
+  const real = await realpath(directory);
+  if (!samePath(real, path.resolve(directory)))
     throw new Error('Review storage must not use symlinked directories.');
+  if (windows) {
+    const profile = await realpath(os.homedir());
+    if (!within(profile.toLowerCase(), real.toLowerCase()))
+      throw new Error(
+        'On Windows, review storage must be inside your user profile, whose permissions keep it private.',
+      );
+    return;
+  }
   await chmod(directory, 0o700);
 }
 
@@ -195,12 +219,7 @@ export async function loadState(directory, id) {
   try {
     handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const stat = await handle.stat();
-    if (
-      !stat.isFile() ||
-      stat.size > 64 * 1024 * 1024 ||
-      stat.mode & 0o077 ||
-      (process.getuid && stat.uid !== process.getuid())
-    )
+    if (!privateFile(stat) || stat.size > 64 * 1024 * 1024)
       throw new Error('Review state is not a private regular file.');
     return validate(
       JSON.parse(
@@ -318,11 +337,14 @@ export async function openStore(review, directory = stateDirectory()) {
           await handle.close();
           handle = null;
           await rename(temp, file);
-          const parent = await open(directory, 'r');
-          try {
-            await parent.sync();
-          } finally {
-            await parent.close();
+          // Windows cannot open a directory to flush it; NTFS journals the rename.
+          if (!windows) {
+            const parent = await open(directory, 'r');
+            try {
+              await parent.sync();
+            } finally {
+              await parent.close();
+            }
           }
           state = next;
         } finally {

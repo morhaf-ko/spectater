@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import { accessFor, handoffFor, preferredPort, publicOrigin } from '../src/access.js';
+import {
+  accessFor,
+  detectTailscale,
+  handoffFor,
+  notifyHerdr,
+  preferredPort,
+  publicOrigin,
+} from '../src/access.js';
 import {
   agentRequest,
   listServers,
@@ -191,9 +198,12 @@ const commands = {
         idleTimeout: idle * 1000,
         onIdle: stop,
         onStop: stop,
+        onWaiting: () => notifyHerdr(manifest.change),
         port: preferredPort(config),
         publicOrigin: (port) => publicOrigin(config, port),
+        tailnet: await detectTailscale(),
       });
+      if (server.tailnetError) process.stderr.write(`${server.tailnetError}\n`);
       await writeServer(directory, {
         reviewId: manifest.reviewId,
         pid: process.pid,

@@ -44,7 +44,12 @@ function copilot(settings) {
   settings.version = 1;
   settings.hooks ||= {};
   const hooks = (settings.hooks.sessionStart || []).filter((h) => !managed(h.bash));
-  hooks.push({ type: 'command', bash: `${COMMAND} copilot`, timeoutSec: 10 });
+  hooks.push({
+    type: 'command',
+    bash: `${COMMAND} copilot`,
+    powershell: `${COMMAND} copilot`,
+    timeoutSec: 10,
+  });
   settings.hooks.sessionStart = hooks;
   return settings;
 }
@@ -57,8 +62,12 @@ export const SpecTaterPlugin = async ({ directory }) => {
   const seen = new Map();
   const status = () =>
     new Promise((resolve) =>
-      execFile('spectater', ['status', '--hook'], { cwd: directory, timeout: 10000 }, (error, stdout) =>
-        resolve(error ? '' : stdout.trim()),
+      execFile(
+        'spectater',
+        ['status', '--hook'],
+        // npm installs spectater.cmd on Windows, which needs a shell.
+        { cwd: directory, timeout: 10000, shell: process.platform === 'win32', windowsHide: true },
+        (error, stdout) => resolve(error ? '' : stdout.trim()),
       ),
     );
   return {

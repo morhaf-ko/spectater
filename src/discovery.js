@@ -17,10 +17,16 @@ export function within(root, file) {
   );
 }
 
-export async function native(args, cwd) {
+export async function native(args, cwd, platform = process.platform) {
+  // npm installs `openspec.cmd` on Windows, which only cmd.exe can run; it sees the joined args.
+  const shell = platform === 'win32';
+  if (shell && args.some((arg) => !/^[\w.:/@-]+$/.test(arg)))
+    throw new Error('OpenSpec arguments on Windows may use only letters, digits and . _ : / @ -.');
   try {
     const { stdout } = await promisify(execFile)('openspec', args, {
       cwd,
+      shell,
+      windowsHide: true,
       timeout: 15000,
       maxBuffer: 4 * 1024 * 1024,
       env: { ...process.env, OPENSPEC_TELEMETRY: '0' },
@@ -33,7 +39,8 @@ export async function native(args, cwd) {
 
 // Prefer OpenSpec's own structured diagnostics (`status[].message`) over raw output.
 function diagnostic(error) {
-  if (error.code === 'ENOENT')
+  // cmd.exe exits 9009 when the command is not found.
+  if (error.code === 'ENOENT' || error.code === 9009)
     return Object.assign(
       new Error(
         'OpenSpec CLI not found. Install it with `npm install -g @fission-ai/openspec` (1.15 or newer), then try again.',

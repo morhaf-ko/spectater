@@ -4,11 +4,15 @@ import { test } from 'node:test';
 import {
   accessFor,
   containerized,
+  detectTailscale,
   handoffFor,
+  notifyHerdr,
+  parseTailscale,
   preferredPort,
   publicOrigin,
   REMOTE_PORT,
   remoteSession,
+  tmuxSsh,
 } from '../src/access.js';
 
 const desktop = { DISPLAY: ':0' };
@@ -123,4 +127,60 @@ test('handoff keeps the url and access instructions for every remote mode, even 
 
 test('Kubernetes pods count as containers', () => {
   assert.equal(containerized({ KUBERNETES_SERVICE_HOST: '10.0.0.1' }), true);
+});
+
+test('a tmux pane is remote when its session was last attached over SSH', () => {
+  const answer = (output) => () => output;
+  assert.equal(tmuxSsh({}, answer('SSH_CONNECTION=1 2 3 4\n')), false, 'not in tmux');
+  assert.equal(tmuxSsh({ TMUX: '/t/a,1,0' }, answer('SSH_CONNECTION=1 2 3 4\n')), true);
+  assert.equal(tmuxSsh({ TMUX: '/t/b,1,0' }, answer('-SSH_CONNECTION\n')), false, 'detached');
+  const failing = () => {
+    throw new Error('no server');
+  };
+  assert.equal(tmuxSsh({ TMUX: '/t/c,1,0' }, failing), false);
+});
+
+test('Tailscale status yields the tailnet IPv4 and MagicDNS name only when running', async () => {
+  const running = {
+    BackendState: 'Running',
+    Self: { TailscaleIPs: ['fd7a::1', '100.64.0.7'], DNSName: 'Forge.tail1234.ts.net.' },
+  };
+  assert.deepEqual(parseTailscale(JSON.stringify(running)), {
+    address: '100.64.0.7',
+    host: 'forge.tail1234.ts.net',
+  });
+  assert.equal(parseTailscale(JSON.stringify({ ...running, BackendState: 'Stopped' })), null);
+  assert.equal(
+    parseTailscale(JSON.stringify({ ...running, Self: { ...running.Self, DNSName: '' } })),
+    null,
+    'no MagicDNS',
+  );
+  assert.equal(parseTailscale('not json'), null);
+  const run = async (command) => {
+    if (command === 'tailscale') throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+    return { stdout: JSON.stringify(running) };
+  };
+  assert.equal((await detectTailscale({}, 'darwin', run)).address, '100.64.0.7', 'app bundle');
+  assert.equal(await detectTailscale({}, 'linux', run), null);
+  assert.equal(await detectTailscale({ SPECTATER_TAILSCALE: '0' }, 'darwin', run), null);
+});
+
+test('the Herdr chime is opt-in and inside Herdr only', () => {
+  const calls = [];
+  const child = { on() {}, once() {}, unref() {}, kill() {} };
+  const run = (...args) => {
+    calls.push(args);
+    return child;
+  };
+  assert.equal(notifyHerdr('demo', { SPECTATER_HERDR_CHIME: '1' }, run), false);
+  assert.equal(notifyHerdr('demo', { HERDR_ENV: '1' }, run), false);
+  assert.equal(notifyHerdr('demo', { HERDR_ENV: '1', SPECTATER_HERDR_CHIME: '1' }, run), true);
+  assert.deepEqual(calls[0][1].slice(-2), ['--sound', 'request']);
+  const throwing = () => {
+    throw new Error('ENOENT');
+  };
+  assert.equal(
+    notifyHerdr('demo', { HERDR_ENV: '1', SPECTATER_HERDR_CHIME: '1' }, throwing),
+    false,
+  );
 });

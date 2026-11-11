@@ -97,7 +97,12 @@ test('missing CLI and failed OpenSpec commands report actionable diagnostics', a
   });
   process.env.PATH = tools;
   await assert.rejects(native(['--version'], f.project), /npm install -g @fission-ai\/openspec/);
+  await assert.rejects(native(['--store', 'a&b'], f.project, 'win32'), /only letters/);
   await mkdir(tools);
+  await writeFile(
+    path.join(tools, 'openspec.cmd'),
+    '@echo {"root":null,"status":[{"severity":"error","message":"No OpenSpec root found."}]}\r\n@exit /b 1\r\n',
+  );
   await writeFile(
     path.join(tools, 'openspec'),
     `#!/bin/sh\necho '{"root":null,"status":[{"severity":"error","message":"No OpenSpec root found."}]}'\nexit 1\n`,
@@ -304,10 +309,11 @@ test('comment persistence, immutable feedback, revision conflicts, stale/duplica
   review = await openReview(f.options, { directory: f.stateDir });
   assert.equal(review.view().comments.length, 1);
   assert.equal(feedbackMarkdown(feedback(review.state, batch)), exported);
-  assert.equal(
-    (await stat(path.join(f.stateDir, `${review.state.reviewId}.json`))).mode & 0o777,
-    0o600,
-  );
+  if (process.platform !== 'win32')
+    assert.equal(
+      (await stat(path.join(f.stateDir, `${review.state.reviewId}.json`))).mode & 0o777,
+      0o600,
+    );
 });
 
 test('corrupt state is preserved and persistence errors do not acknowledge changes', async (t) => {
@@ -332,6 +338,7 @@ test('corrupt state is preserved and persistence errors do not acknowledge chang
   assert.equal(await readFile(corrupt, 'utf8'), '{ broken');
   await writeFile(corrupt, JSON.stringify({ formatVersion: 99 }));
   await assert.rejects(loadState(f2.stateDir, r2.reviewId), /unsupported/);
+  if (process.platform === 'win32') return;
   await chmod(corrupt, 0o644);
   await assert.rejects(loadState(f2.stateDir, r2.reviewId), /private/);
 });
@@ -611,5 +618,86 @@ test('browser opener uses exact argument and reports failure without shell execu
   );
   await openBrowser('http://x', async (...args) => calls.push(args), 'linux', { DISPLAY: ':0' });
   assert.equal(calls.at(-1)[0], 'xdg-open');
-  await assert.rejects(openBrowser('http://example', undefined, 'win32', {}), /macOS and Linux/);
+  await openBrowser("http://x/#it's", async (...args) => calls.push(args), 'win32', {});
+  assert.deepEqual(calls.at(-1).slice(0, 2), [
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', "Start-Process 'http://x/#it''s'"],
+  ]);
+  await assert.rejects(openBrowser('http://example', undefined, 'aix', {}), /Linux and Windows/);
+});
+
+test('in WSL a missing xdg-open falls back to the Windows opener', async () => {
+  const calls = [];
+  const run = async (command) => {
+    calls.push(command);
+    if (command === 'xdg-open') throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+  };
+  assert.equal(await openBrowser('http://u', run, 'linux', { WSL_DISTRO_NAME: 'Ubuntu' }), true);
+  assert.deepEqual(calls, ['xdg-open', 'powershell.exe']);
+  await assert.rejects(openBrowser('http://u', run, 'linux', { DISPLAY: ':0' }), /missing/);
+});
+
+test('Windows $BROWSER entries are separated by semicolons', async () => {
+  const helpers = [];
+  const launch = async (command, args) => helpers.push([command, args]);
+  const env = { BROWSER: 'C:\\Browsers\\a.exe;b.exe' };
+  assert.equal(await openBrowser('http://u', undefined, 'win32', env, launch), true);
+  assert.deepEqual(helpers, [['C:\\Browsers\\a.exe', ['http://u']]]);
+});
+
+test('a tailnet address adds a listener and a public URL; agent routes stay on loopback', async (t) => {
+  const f = await fixture();
+  const r = await openReview(f.options, { directory: f.stateDir });
+  const unavailable = await startServer(r, {
+    watch: false,
+    tailnet: { address: '192.0.2.1', host: 'forge.tail.ts.net' },
+  });
+  assert.equal(unavailable.publicUrl, undefined);
+  assert.match(unavailable.tailnetError, /192\.0\.2\.1.*stays on loopback/);
+  await unavailable.close();
+  const proxied = await startServer(await openReview(f.options, { directory: f.stateDir }), {
+    watch: false,
+    publicOrigin: () => 'https://proxy.example.test',
+    tailnet: { address: '127.0.0.1', host: 'forge.tail.ts.net' },
+  });
+  assert.equal(proxied.tailnetError, undefined, 'a public origin wins without binding');
+  assert.match(proxied.publicUrl, /^https:\/\/proxy\.example\.test\/review\//);
+  await proxied.close();
+  if (process.platform !== 'linux') return t.after(f.cleanup);
+  // Linux routes all of 127/8 to loopback, so 127.0.0.2 stands in for a tailnet address.
+  const blocker = http.createServer();
+  await new Promise((resolve) => blocker.listen(0, '127.0.0.2', resolve));
+  const busy = blocker.address().port;
+  const server = await startServer(await openReview(f.options, { directory: f.stateDir }), {
+    watch: false,
+    port: busy,
+    tailnet: { address: '127.0.0.2', host: 'forge.tail.ts.net' },
+  });
+  t.after(async () => {
+    await server.close();
+    blocker.close();
+    await f.cleanup();
+  });
+  assert.ok(server.port > busy && server.port < busy + 10, 'a busy tailnet port is skipped');
+  const external = new URL(server.publicUrl);
+  assert.equal(external.origin, `http://forge.tail.ts.net:${server.port}`);
+  const request = (host, pathname, headers = {}) =>
+    new Promise((resolve, reject) =>
+      http
+        .get({ host, port: server.port, path: pathname, headers }, (response) => {
+          response.resume();
+          resolve(response.statusCode);
+        })
+        .on('error', reject),
+    );
+  assert.equal(
+    await request('127.0.0.2', external.pathname, { Host: external.host }),
+    200,
+    'review page over the tailnet',
+  );
+  assert.equal(
+    await request('127.0.0.2', external.pathname, { Host: 'evil.test' }),
+    403,
+    'foreign host refused',
+  );
 });

@@ -14,6 +14,9 @@ export const localSession = {
   SPECTATER_PORT: '',
   SPECTATER_REMOTE: '',
   WSL_DISTRO_NAME: '',
+  TMUX: '',
+  SPECTATER_TAILSCALE: '0',
+  SPECTATER_HERDR_CHIME: '',
 };
 
 /** Runs the CLI against a test fixture's project, state directory and config. */

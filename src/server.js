@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import http from 'node:http';
+import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { PORT_RANGE, remoteSession } from './access.js';
@@ -44,8 +45,26 @@ async function readJson(request) {
 }
 
 const loopbackHost = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d{1,5})?$/;
+const loopbackAddress = (address = '') => address === '::1' || /^(?:::ffff:)?127\./.test(address);
 
-async function listen(server, port) {
+/** Hands connections on the tailnet address to the loopback HTTP server. */
+function listenTailnet(server, address, port) {
+  const listener = net.createServer((socket) => server.emit('connection', socket));
+  return new Promise((resolve, reject) => {
+    listener.once('error', reject);
+    listener.listen(port, address, () => {
+      listener.off('error', reject);
+      resolve(listener);
+    });
+  });
+}
+
+/**
+ * Binds loopback on `port` or the next free port in the range (0 picks a random port). With
+ * `attach`, a port whose tailnet side is busy is skipped too while the range lasts; any other
+ * attach failure leaves the review on loopback and is returned as `attachError`.
+ */
+async function listen(server, port, attach) {
   const last = port ? Math.min(port + PORT_RANGE - 1, 65535) : 0;
   for (let candidate = port; ; candidate++) {
     try {
@@ -56,7 +75,6 @@ async function listen(server, port) {
           resolve();
         });
       });
-      return;
     } catch (error) {
       if (error.code !== 'EADDRINUSE' || candidate >= last) {
         if (error.code === 'EADDRINUSE')
@@ -65,16 +83,26 @@ async function listen(server, port) {
           );
         throw error;
       }
+      continue;
+    }
+    if (!attach) return {};
+    try {
+      return { attached: await attach(server.address().port) };
+    } catch (error) {
+      if (error.code !== 'EADDRINUSE' || candidate >= last) return { attachError: error };
+      await new Promise((resolve) => server.close(resolve));
     }
   }
 }
 
 /**
  * Serves one review to the browser (capability in the URL fragment) and to agent commands
- * (`/agent/*`, same capability). `onIdle` fires after `idleTimeout` ms with no browser stream
- * and no waiting agent; `onStop` fires after an agent stop request is answered. `port` is tried
- * first with a small fallback range (0 picks a random port); `publicOrigin(port)` names the
- * proxied origin the reviewer uses for the bound port, if any.
+ * (`/agent/*`, same capability, loopback only). `onIdle` fires after `idleTimeout` ms with no
+ * browser stream and no waiting agent; `onStop` fires after an agent stop request is answered;
+ * `onWaiting` fires when an agent starts waiting with nothing to deliver, once per batch.
+ * `port` is tried first with a small fallback range (0 picks a random port);
+ * `publicOrigin(port)` names the proxied origin the reviewer uses for the bound port, if any.
+ * Without one, a `tailnet` `{ address, host }` adds a listener on that address and port.
  */
 export async function startServer(review, options = {}) {
   const {
@@ -84,10 +112,13 @@ export async function startServer(review, options = {}) {
     onStop = () => {},
     port = 0,
     publicOrigin = () => undefined,
+    tailnet,
+    onWaiting = () => {},
   } = options;
   const capability = randomBytes(32).toString('hex');
   const route = `/review/${encodeURIComponent(review.view().change)}`;
-  let origin, external;
+  let origin, external, tailnetServer, tailnetError;
+  let announced = false;
   let watchStatus = { automatic: false };
   let watcher,
     stopping = false,
@@ -122,6 +153,7 @@ export async function startServer(review, options = {}) {
   const deliver = async (target) => {
     try {
       const batch = await review.deliver();
+      if (batch) announced = false;
       if (batch) finishWait(target, { status: 'batch', batch });
       else if (review.state.endedAt) finishWait(target, { status: 'ended' });
     } catch (error) {
@@ -202,6 +234,10 @@ export async function startServer(review, options = {}) {
     response.once('close', () => finishWait(target, { status: 'disconnected' }));
     // Queued feedback wins over a zero timeout, so the timer starts after the first delivery check.
     void deliver(target).then(() => {
+      if (waiter === target && !announced && !review.state.endedAt) {
+        announced = true;
+        onWaiting();
+      }
       if (waiter === target)
         target.timer = setTimeout(() => finishWait(target, { status: 'timeout' }), timeout);
     });
@@ -271,6 +307,8 @@ export async function startServer(review, options = {}) {
       if (request.method === 'GET' && batchMatch && /^[a-f0-9-]{36}$/.test(batchMatch))
         return send(200, { markdown: feedbackMarkdown(feedback(review.state, batchMatch)) });
       const operation = url.pathname.startsWith('/agent/') && url.pathname.slice('/agent/'.length);
+      if (operation && !loopbackAddress(request.socket.localAddress))
+        return send(403, { error: 'Agent commands use loopback.' });
       const browserMutation = [`${route}/refresh`, `${route}/action`].includes(url.pathname);
       if (
         request.method !== 'POST' ||
@@ -302,10 +340,20 @@ export async function startServer(review, options = {}) {
   server.requestTimeout = 20000;
   server.headersTimeout = 10000;
   server.maxConnections = 32;
-  await listen(server, port);
+  // A public origin for the port wins, so the tailnet is attached only to ports without one.
+  const attach =
+    tailnet &&
+    ((candidate) =>
+      publicOrigin(candidate) ? null : listenTailnet(server, tailnet.address, candidate));
+  const { attached, attachError } = await listen(server, port, attach);
   const bound = server.address().port;
   origin = `http://127.0.0.1:${bound}`;
   external = publicOrigin(bound);
+  if (attached) {
+    tailnetServer = attached;
+    external = `http://${tailnet.host}:${bound}`;
+  } else if (attachError)
+    tailnetError = `Tailscale address ${tailnet.address}:${bound} unavailable (${attachError.code || attachError.message}); the review stays on loopback.`;
   const url = `${origin}${route}#${capability}`;
   await syncWatcher();
   touch();
@@ -315,6 +363,7 @@ export async function startServer(review, options = {}) {
     route,
     port: bound,
     publicUrl: external && `${external}${route}#${capability}`,
+    tailnetError,
     async close() {
       stopping = true;
       clearTimeout(idleTimer);
@@ -326,6 +375,7 @@ export async function startServer(review, options = {}) {
       for (const client of clients) client.end();
       clients.clear();
       server.closeAllConnections();
+      tailnetServer?.close();
       await new Promise((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       );
@@ -334,7 +384,17 @@ export async function startServer(review, options = {}) {
   };
 }
 
-const openers = { darwin: 'open', linux: 'xdg-open' };
+// PowerShell's Start-Process opens the default browser and keeps the URL fragment; in WSL it is the
+// Windows side's opener when xdg-open is missing.
+const startProcess = (url) => [
+  'powershell.exe',
+  ['-NoProfile', '-NonInteractive', '-Command', `Start-Process '${url.replaceAll("'", "''")}'`],
+];
+const openers = {
+  darwin: (url) => ['open', [url]],
+  linux: (url) => ['xdg-open', [url]],
+  win32: startProcess,
+};
 
 /**
  * Starts a `$BROWSER` helper without waiting for it: a browser started this way keeps running.
@@ -342,7 +402,7 @@ const openers = { darwin: 'open', linux: 'xdg-open' };
  */
 export function launchHelper(command, args, grace = 1500) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+    const child = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true });
     const timer = setTimeout(() => {
       child.unref();
       resolve();
@@ -378,7 +438,8 @@ export async function openBrowser(
   launch = launchHelper,
 ) {
   let failure;
-  for (const entry of (env.BROWSER || '').split(':').filter((item) => item.trim())) {
+  const separator = platform === 'win32' ? ';' : ':';
+  for (const entry of (env.BROWSER || '').split(separator).filter((item) => item.trim())) {
     try {
       await launch(...helperCommand(entry, url));
       return true;
@@ -390,7 +451,14 @@ export async function openBrowser(
     if (failure) throw failure;
     return false;
   }
-  if (!openers[platform]) throw new Error('Automatic opening supports macOS and Linux only.');
-  await run(openers[platform], [url], { timeout: 10000, maxBuffer: 65536 });
+  if (!openers[platform])
+    throw new Error('Automatic opening supports macOS, Linux and Windows only.');
+  const options = { timeout: 10000, maxBuffer: 65536, windowsHide: true };
+  try {
+    await run(...openers[platform](url), options);
+  } catch (error) {
+    if (!(env.WSL_DISTRO_NAME && error.code === 'ENOENT')) throw error;
+    await run(...startProcess(url), options);
+  }
   return true;
 }

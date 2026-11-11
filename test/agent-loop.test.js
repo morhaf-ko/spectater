@@ -177,10 +177,11 @@ test('CLI runs the full loop against a detached server addressed by change name'
   assert.equal(server.opened.status, 'ready');
   assert.equal(new URL(server.url).pathname, '/review/example');
   const record = (await listServers(f.stateDir))[0];
-  assert.equal(
-    (await stat(path.join(f.stateDir, `${record.reviewId}.server.json`))).mode & 0o777,
-    0o600,
-  );
+  if (process.platform !== 'win32')
+    assert.equal(
+      (await stat(path.join(f.stateDir, `${record.reviewId}.server.json`))).mode & 0o777,
+      0o600,
+    );
   assert.equal(JSON.parse((await run(['open', 'example', '--no-open'])).stdout).status, 'reused');
   const implicit = JSON.parse((await run(['open', '--no-open'])).stdout);
   assert.deepEqual([implicit.status, implicit.change], ['reused', 'example']);
@@ -307,6 +308,7 @@ test('setup hooks is idempotent, keeps unrelated hooks and removes only its own 
     await readFile(path.join(home, '.copilot', 'hooks', 'spectater.json'), 'utf8'),
   );
   assert.equal(copilot.hooks.sessionStart[0].bash, 'spectater status --hook copilot');
+  assert.equal(copilot.hooks.sessionStart[0].powershell, 'spectater status --hook copilot');
   await setupHooks({ home, env, remove: true });
   assert.deepEqual(
     JSON.parse(await readFile(path.join(home, '.claude', 'settings.json'), 'utf8')),
@@ -334,7 +336,10 @@ test('status --hook prints open reviews for this project only, and nothing other
   );
 });
 
-test('the serve process exits cleanly on SIGTERM and removes its record', async (t) => {
+// Windows has no SIGTERM handler; `stop` covers shutdown there.
+test('the serve process exits cleanly on SIGTERM and removes its record', {
+  skip: process.platform === 'win32',
+}, async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
   const child = spawn(
@@ -370,19 +375,22 @@ test('remote open reports tunnel access on a stable port; a public URL is printe
   });
   const opened = JSON.parse((await remote(['open', 'example'])).stdout);
   assert.equal(opened.opened, false, 'no platform opener in a remote session');
-  const helper = path.join(f.directory, 'browser-helper');
-  await writeFile(helper, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
-  const helped = JSON.parse(
-    (
-      await cli(bin, f, {
-        SSH_CONNECTION: '10.0.0.2 5000 10.0.0.1 22',
-        SPECTATER_PORT: String(port),
-        BROWSER: helper,
-      })(['open', 'example'])
-    ).stdout,
-  );
-  assert.deepEqual([helped.status, helped.opened, helped.url], ['reused', true, opened.url]);
-  assert.match(helped.next_step, /possibly not on the reviewer's machine.*access\.command/);
+  // A shell-script helper stands in for a browser; Windows cannot run one without a shell.
+  if (process.platform !== 'win32') {
+    const helper = path.join(f.directory, 'browser-helper');
+    await writeFile(helper, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
+    const helped = JSON.parse(
+      (
+        await cli(bin, f, {
+          SSH_CONNECTION: '10.0.0.2 5000 10.0.0.1 22',
+          SPECTATER_PORT: String(port),
+          BROWSER: helper,
+        })(['open', 'example'])
+      ).stdout,
+    );
+    assert.deepEqual([helped.status, helped.opened, helped.url], ['reused', true, opened.url]);
+    assert.match(helped.next_step, /possibly not on the reviewer's machine.*access\.command/);
+  }
   assert.equal(new URL(opened.url).port, String(port));
   assert.deepEqual([opened.access.mode, opened.access.port], ['tunnel', port]);
   assert.match(
