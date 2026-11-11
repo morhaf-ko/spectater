@@ -30,6 +30,7 @@ test('non-regular inputs fail without waiting on a FIFO and config requires stri
   const f = await fixture();
   t.after(f.cleanup);
   await assert.rejects(readFileLimited(f.directory, 16), /regular file/);
+  if (process.platform === 'win32') return;
   const fifo = path.join(f.directory, 'fifo');
   await promisify(execFile)('mkfifo', [fifo]);
   await assert.rejects(readFileLimited(fifo, 16), /regular file/);

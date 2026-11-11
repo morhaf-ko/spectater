@@ -6,7 +6,7 @@ NTFS reports no POSIX owner or mode bits, so the existing `0o077` and uid checks
 
 ## Running npm shims on Windows
 
-Node refuses to spawn `.cmd` files without a shell. OpenSpec arguments are therefore passed to `cmd.exe` only when every argument matches `[\w.:/@-]+`, and exit code 9009 is reported as a missing CLI.
+Node refuses to spawn `.cmd` files without a shell. OpenSpec arguments are therefore passed to `cmd.exe` only when every argument matches `[\w.:/@-]+`, and a CLI missing from `PATH` with any `PATHEXT` extension is reported before spawning.
 
 ## Browser opening on Windows
 

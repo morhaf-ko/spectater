@@ -24,6 +24,9 @@ export function sourceChanges(state) {
     .sort((a, b) => a.path.localeCompare(b.path));
 }
 
+// Git for Windows maps /dev/null itself and rejects Node's `\\.\nul`.
+const devNull = '/dev/null';
+
 export async function compareSources(state, id, run = promisify(execFile)) {
   const change = sourceChanges(state).find((item) => item.id === id);
   if (!change) throw new Error('No source comparison for this document.');
@@ -43,7 +46,7 @@ export async function compareSources(state, id, run = promisify(execFile)) {
     );
     Object.assign(env, {
       GIT_CONFIG_NOSYSTEM: '1',
-      GIT_CONFIG_GLOBAL: os.devNull,
+      GIT_CONFIG_GLOBAL: devNull,
       GIT_ATTR_NOSYSTEM: '1',
       LC_ALL: 'C',
     });
@@ -54,7 +57,7 @@ export async function compareSources(state, id, run = promisify(execFile)) {
         [
           '--no-pager',
           '-c',
-          `core.attributesFile=${os.devNull}`,
+          `core.attributesFile=${devNull}`,
           'diff',
           '--no-index',
           '--no-ext-diff',

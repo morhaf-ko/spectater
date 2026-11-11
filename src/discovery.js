@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, open, realpath } from 'node:fs/promises';
+import { access, lstat, open, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { readLimited } from './files.js';
@@ -17,11 +17,28 @@ export function within(root, file) {
   );
 }
 
+/** True when `PATH` holds `command` with one of `PATHEXT`'s extensions (Windows lookup). */
+async function onWindowsPath(command, env = process.env) {
+  const extensions = (env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  for (const directory of (env.PATH || env.Path || '').split(';').filter(Boolean))
+    for (const extension of extensions)
+      if (
+        await access(path.win32.join(directory, command + extension)).then(
+          () => true,
+          () => false,
+        )
+      )
+        return true;
+  return false;
+}
+
 export async function native(args, cwd, platform = process.platform) {
   // npm installs `openspec.cmd` on Windows, which only cmd.exe can run; it sees the joined args.
   const shell = platform === 'win32';
   if (shell && args.some((arg) => !/^[\w.:/@-]+$/.test(arg)))
     throw new Error('OpenSpec arguments on Windows may use only letters, digits and . _ : / @ -.');
+  if (shell && !(await onWindowsPath('openspec')))
+    throw diagnostic(Object.assign(new Error('openspec not found'), { code: 'ENOENT' }));
   try {
     const { stdout } = await promisify(execFile)('openspec', args, {
       cwd,
@@ -39,8 +56,7 @@ export async function native(args, cwd, platform = process.platform) {
 
 // Prefer OpenSpec's own structured diagnostics (`status[].message`) over raw output.
 function diagnostic(error) {
-  // cmd.exe exits 9009 when the command is not found.
-  if (error.code === 'ENOENT' || error.code === 9009)
+  if (error.code === 'ENOENT')
     return Object.assign(
       new Error(
         'OpenSpec CLI not found. Install it with `npm install -g @fission-ai/openspec` (1.15 or newer), then try again.',
