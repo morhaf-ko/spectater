@@ -170,6 +170,7 @@ const commands = {
     const { createDiscovery } = await import('../src/discovery.js');
     const { openReview } = await import('../src/review.js');
     const { startServer } = await import('../src/server.js');
+    const tailnet = detectTailscale();
     const discover = createDiscovery();
     const manifest = await discover(options);
     const review = await openReview(
@@ -201,7 +202,7 @@ const commands = {
         onWaiting: () => notifyHerdr(manifest.change),
         port: preferredPort(config),
         publicOrigin: (port) => publicOrigin(config, port),
-        tailnet: await detectTailscale(),
+        tailnet: await tailnet,
       });
       if (server.tailnetError) process.stderr.write(`${server.tailnetError}\n`);
       await writeServer(directory, {

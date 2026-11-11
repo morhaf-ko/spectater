@@ -117,7 +117,7 @@ export async function startServer(review, options = {}) {
   } = options;
   const capability = randomBytes(32).toString('hex');
   const route = `/review/${encodeURIComponent(review.view().change)}`;
-  let origin, external, tailnetServer, tailnetError;
+  let origin, external;
   let announced = false;
   let watchStatus = { automatic: false };
   let watcher,
@@ -348,12 +348,10 @@ export async function startServer(review, options = {}) {
   const { attached, attachError } = await listen(server, port, attach);
   const bound = server.address().port;
   origin = `http://127.0.0.1:${bound}`;
-  external = publicOrigin(bound);
-  if (attached) {
-    tailnetServer = attached;
-    external = `http://${tailnet.host}:${bound}`;
-  } else if (attachError)
-    tailnetError = `Tailscale address ${tailnet.address}:${bound} unavailable (${attachError.code || attachError.message}); the review stays on loopback.`;
+  external = attached ? `http://${tailnet.host}:${bound}` : publicOrigin(bound);
+  const tailnetError =
+    attachError &&
+    `Tailscale address ${tailnet.address}:${bound} unavailable (${attachError.code || attachError.message}); the review stays on loopback.`;
   const url = `${origin}${route}#${capability}`;
   await syncWatcher();
   touch();
@@ -375,7 +373,7 @@ export async function startServer(review, options = {}) {
       for (const client of clients) client.end();
       clients.clear();
       server.closeAllConnections();
-      tailnetServer?.close();
+      attached?.close();
       await new Promise((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       );

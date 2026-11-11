@@ -49,10 +49,12 @@ export function remoteSession(env = process.env, platform = process.platform) {
   if (['1', 'true'].includes(override)) return true;
   if (['0', 'false'].includes(override)) return false;
   if (override) throw new Error('SPECTATER_REMOTE must be 1, true, 0 or false.');
-  if (env.SSH_CONNECTION || env.SSH_TTY || codespace(env) || tmuxSsh(env)) return true;
+  if (env.SSH_CONNECTION || env.SSH_TTY || codespace(env)) return true;
   // Windows browsers reach WSL2 loopback directly, so a display-less WSL shell is still local.
-  if (env.WSL_DISTRO_NAME) return false;
-  return platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY;
+  const headless =
+    platform === 'linux' && !env.WSL_DISTRO_NAME && !env.DISPLAY && !env.WAYLAND_DISPLAY;
+  // tmux is asked last: a headless host is remote without the extra process.
+  return headless || tmuxSsh(env);
 }
 
 /** True inside a container or pod, where an SSH tunnel to the hostname cannot work. */

@@ -22,8 +22,6 @@ export function stateDirectory() {
 }
 
 const windows = process.platform === 'win32';
-// Windows paths compare case-insensitively.
-const samePath = (a, b) => (windows ? a.toLowerCase() === b.toLowerCase() : a === b);
 
 /**
  * True for a regular file only this user can read. NTFS reports no POSIX owner or mode, so on
@@ -45,7 +43,9 @@ export async function privateDirectory(directory) {
   )
     throw new Error('Review storage must be an owned private directory.');
   const real = await realpath(directory);
-  if (!samePath(real, path.resolve(directory)))
+  // Windows paths compare case-insensitively.
+  const resolved = path.resolve(directory);
+  if (windows ? real.toLowerCase() !== resolved.toLowerCase() : real !== resolved)
     throw new Error('Review storage must not use symlinked directories.');
   if (windows) {
     const profile = await realpath(os.homedir());
