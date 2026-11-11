@@ -85,12 +85,10 @@ export function handoffFor(access, opened) {
   const reach = {
     tunnel:
       ' and access.command, which they run on their own machine first; the host is this machine and may need their own SSH name for it',
-    forward: ` and tell them to forward port ${access.port} from this container to their machine first (their editor's port forwarding, or host networking)`,
+    forward: ` and tell them to forward port ${access.port} from this container to their machine first (their editor's port forwarding, \`kubectl port-forward\` or host networking)`,
     public: '',
   }[access.mode];
-  // A helper can open a browser on this machine rather than the reviewer's, so remote handoffs keep the url.
-  const helper = opened
-    ? "A browser helper opened the url, possibly not on the reviewer's machine. "
-    : '';
+  // An opener can run on this machine rather than the reviewer's, so remote handoffs keep the url.
+  const helper = opened ? "The browser opener ran, possibly not on the reviewer's machine. " : '';
   return `${helper}Give the reviewer the url (keep it private)${reach}.`;
 }

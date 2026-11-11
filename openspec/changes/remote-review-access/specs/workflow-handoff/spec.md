@@ -71,12 +71,12 @@ For a remote session or an applicable public URL, `open` SHALL add an `access` o
 
 #### Scenario: Container
 
-- **WHEN** open runs in a remote session inside a Docker or Podman container without SSH variables
+- **WHEN** open runs in a remote session inside a Docker or Podman container or a Kubernetes pod without SSH variables
 - **THEN** `access` has the forward mode and port and no SSH command
 
 #### Scenario: Helper on the wrong machine
 
-- **WHEN** a `$BROWSER` helper reports success in a remote session
+- **WHEN** a browser opener reports success in a remote session
 - **THEN** the next step still gives the reviewer the URL and access instructions
 
 #### Scenario: WSL

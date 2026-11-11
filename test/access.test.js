@@ -106,13 +106,10 @@ test('handoff keeps the url and access instructions for every remote mode, even 
   assert.equal(handoffFor(undefined, false), 'Give the reviewer the url (keep it private).');
   const tunnel = { mode: 'tunnel', port: 47420, command: 'ssh -N -L 47420:127.0.0.1:47420 h' };
   assert.match(handoffFor(tunnel, false), /^Give the reviewer the url .*access\.command/);
-  assert.match(
-    handoffFor(tunnel, true),
-    /^A browser helper opened the url, possibly not .*access\.command/,
-  );
+  assert.match(handoffFor(tunnel, true), /^The browser opener ran, possibly not .*access\.command/);
   assert.match(
     handoffFor({ mode: 'forward', port: 47421 }, false),
-    /forward port 47421 from this container/,
+    /forward port 47421 from this container .*kubectl port-forward/,
   );
   assert.equal(
     handoffFor({ mode: 'public', port: 47420 }, false),
