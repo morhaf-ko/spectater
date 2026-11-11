@@ -29,6 +29,16 @@ test('remote sessions are SSH, codespaces or headless Linux', () => {
   assert.equal(remoteSession({ WAYLAND_DISPLAY: 'wayland-0' }, 'linux'), false);
 });
 
+test('SPECTATER_REMOTE overrides detection both ways and rejects other values', () => {
+  assert.equal(remoteSession({ SPECTATER_REMOTE: '1' }, 'darwin'), true, 'macOS host in tmux');
+  assert.equal(remoteSession({ ...desktop, SPECTATER_REMOTE: 'TRUE' }, 'linux'), true);
+  assert.equal(remoteSession({ SPECTATER_REMOTE: '0' }, 'linux'), false, 'headless but local');
+  assert.equal(remoteSession({ SSH_TTY: '/dev/pts/1', SPECTATER_REMOTE: 'false' }, 'linux'), false);
+  assert.equal(remoteSession({ ...desktop, SPECTATER_REMOTE: '' }, 'linux'), false);
+  assert.throws(() => remoteSession({ SPECTATER_REMOTE: 'yes' }, 'linux'), /SPECTATER_REMOTE/);
+  assert.equal(preferredPort({}, { SPECTATER_REMOTE: '1' }, 'darwin'), REMOTE_PORT);
+});
+
 test('preferred port: SPECTATER_PORT, then config, then the remote default, else random', () => {
   assert.equal(preferredPort({}, desktop, 'linux'), 0);
   assert.equal(preferredPort({}, {}, 'linux'), REMOTE_PORT);

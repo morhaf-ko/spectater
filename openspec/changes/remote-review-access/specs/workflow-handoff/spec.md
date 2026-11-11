@@ -2,7 +2,7 @@
 
 ### Requirement: Exact-change opening
 
-The system SHALL open the review URL after the server is ready, on macOS and Linux, unless no-open mode is selected, trying the `$BROWSER` executables before the platform opener. On Linux without a display or `$BROWSER` it MUST NOT run an opener. It MUST print the URL in every case and report discovery failure before opening a browser.
+The system SHALL open the review URL after the server is ready, on macOS and Linux, unless no-open mode is selected, trying the `$BROWSER` executables before the platform opener. In a remote session it MUST NOT run the platform opener. It MUST print the URL in every case and report discovery failure before opening a browser.
 
 #### Scenario: Normal invocation
 
@@ -21,7 +21,7 @@ The system SHALL open the review URL after the server is ready, on macOS and Lin
 
 #### Scenario: Headless host
 
-- **WHEN** open runs on Linux without `DISPLAY`, `WAYLAND_DISPLAY` or `$BROWSER`
+- **WHEN** open runs in a remote session without `$BROWSER`, such as on Linux without `DISPLAY` or `WAYLAND_DISPLAY`
 - **THEN** no opener runs, the result reports the browser as not opened and no opener error is written
 
 #### Scenario: Browser unavailable
@@ -33,7 +33,7 @@ The system SHALL open the review URL after the server is ready, on macOS and Lin
 
 ### Requirement: Stable review port
 
-The system SHALL treat a session as remote when SSH session variables are set, a codespace is detected, or it runs on Linux without a display. It SHALL bind a preferred port from configuration or `SPECTATER_PORT`, or a documented default in a remote session, falling back to the next free port in a bounded range. It MUST keep binding loopback only.
+The system SHALL treat a session as remote when `SPECTATER_REMOTE` says so, or, when it is unset, when SSH session variables are set, a codespace is detected, or it runs on Linux without a display. It SHALL bind a preferred port from configuration or `SPECTATER_PORT`, or a documented default in a remote session, falling back to the next free port in a bounded range. It MUST keep binding loopback only.
 
 #### Scenario: Stable port across reviews
 
@@ -49,6 +49,16 @@ The system SHALL treat a session as remote when SSH session variables are set, a
 
 - **WHEN** open runs on a desktop session with no SSH variables and no preferred port
 - **THEN** the server keeps a random port
+
+#### Scenario: Explicit remote override
+
+- **WHEN** `SPECTATER_REMOTE=1` is set on a macOS host reached over SSH from a terminal multiplexer without SSH variables
+- **THEN** the session is remote: the default port is used, no platform opener runs and `open` reports the tunnel command
+
+#### Scenario: Explicit local override
+
+- **WHEN** `SPECTATER_REMOTE=0` is set on a headless Linux host
+- **THEN** the session is local and keeps a random port without an `access` object
 
 ### Requirement: Remote access result
 

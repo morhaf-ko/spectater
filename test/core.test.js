@@ -574,6 +574,13 @@ test('browser opener tries $BROWSER first and skips headless Linux without one',
   };
   assert.equal(await openBrowser('http://u', fallback, 'darwin', { BROWSER: '/opt/first' }), true);
   assert.deepEqual(calls.at(-1), ['open'], 'a failed helper falls back to the platform opener');
+  calls.length = 0;
+  assert.equal(await openBrowser('http://u', record, 'darwin', { SPECTATER_REMOTE: '1' }), false);
+  assert.equal(
+    await openBrowser('http://u', record, 'linux', { DISPLAY: ':0', SSH_CONNECTION: 'a b c d' }),
+    false,
+  );
+  assert.deepEqual(calls, [], 'no platform opener in a remote session');
 });
 
 test('browser opener uses exact argument and reports failure without shell execution', async () => {

@@ -11,8 +11,15 @@ function codespace(env) {
   return { name, domain };
 }
 
-/** True when the reviewer's browser is probably on another machine (SSH, codespace or no display). */
+/**
+ * True when the reviewer's browser is probably on another machine (SSH, codespace or no display).
+ * `SPECTATER_REMOTE` set to 1/true or 0/false overrides detection.
+ */
 export function remoteSession(env = process.env, platform = process.platform) {
+  const override = (env.SPECTATER_REMOTE || '').toLowerCase();
+  if (['1', 'true'].includes(override)) return true;
+  if (['0', 'false'].includes(override)) return false;
+  if (override) throw new Error('SPECTATER_REMOTE must be 1, true, 0 or false.');
   return Boolean(
     env.SSH_CONNECTION ||
       env.SSH_TTY ||

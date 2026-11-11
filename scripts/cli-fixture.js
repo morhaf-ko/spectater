@@ -12,6 +12,7 @@ export const localSession = {
   BROWSER: '',
   DISPLAY: ':0',
   SPECTATER_PORT: '',
+  SPECTATER_REMOTE: '',
 };
 
 /** Runs the CLI against a test fixture's project, state directory and config. */

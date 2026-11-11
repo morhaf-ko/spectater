@@ -13,6 +13,7 @@
 - [x] 3.1 Add `port` and `publicUrl` to `src/config.js` with validation, and read `SPECTATER_PORT`; verify valid, invalid and missing-port cases with `bun run test`.
 - [x] 3.2 Detect remote sessions (SSH variables, codespace, headless Linux) and bind the preferred or default port with a ten-port fallback, failing with the range when all are busy; verify with `bun run test`.
 - [x] 3.3 Store the public URL beside the loopback URL in the server record, use it for every printed review URL, derive it in a codespace, and keep agent requests on loopback; verify with `bun run test`.
+- [x] 3.4 Honour `SPECTATER_REMOTE` (1/true, 0/false, error otherwise) over detection, and skip the platform opener in remote sessions; verify both overrides and the opener with `bun run test`.
 
 ## 4. Agent output
 

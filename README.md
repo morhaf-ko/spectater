@@ -107,7 +107,7 @@ For each agent that is installed, this adds a SessionStart hook for Claude Code 
 
 ## Agents on another machine
 
-When the agent runs over SSH, in a devcontainer, in a codespace or on a headless Linux host (including tmux or Herdr panes without SSH variables), the server still listens on `127.0.0.1` only. You reach it through a forward or a proxy you control:
+When the agent runs over SSH, in a devcontainer, in a codespace or on a headless Linux host (including tmux or Herdr panes without SSH variables), the server still listens on `127.0.0.1` only. Where detection can't tell, for example a macOS host or Linux desktop reached over SSH from tmux, set `SPECTATER_REMOTE=1` in that shell. You reach it through a forward or a proxy you control:
 
 - **SSH.** The server prefers port 47420 (or `port` / `SPECTATER_PORT`) and moves to the next free port in 47420–47429 when another review holds it. `open` prints the tunnel command in `access`, for example `ssh -N -L 47420:127.0.0.1:47420 forge`. To forward every review on that port, add `LocalForward 127.0.0.1:47420 127.0.0.1:47420` to the host's entry in your local `~/.ssh/config`.
 - **VS Code Remote and devcontainers.** `open` uses the editor's `$BROWSER` helper, which forwards the port and opens the review on your machine. Forwarded `localhost` addresses and remapped local ports are accepted.
@@ -133,11 +133,12 @@ No configuration is required. An optional `~/.config/spectater/config.json` (or 
 }
 ```
 
-| Variable                 | Effect                                                                                                                       |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `SPECTATER_STATE_DIR`    | Where reviews are stored. Default: `~/Library/Application Support/SpecTater` on macOS, `$XDG_STATE_HOME/spectater` on Linux. |
-| `SPECTATER_PORT`         | Preferred server port; overrides `port`. Default: random locally, 47420 on a remote session.                                 |
-| `SPECTATER_IDLE_TIMEOUT` | Seconds before an unused server stops itself. Default 1800; `0` disables.                                                    |
+| Variable                 | Effect                                                                                                                           |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `SPECTATER_STATE_DIR`    | Where reviews are stored. Default: `~/Library/Application Support/SpecTater` on macOS, `$XDG_STATE_HOME/spectater` on Linux.     |
+| `SPECTATER_REMOTE`       | `1` or `0` forces remote or local behaviour when detection is wrong, for example `1` on a macOS host reached over SSH from tmux. |
+| `SPECTATER_PORT`         | Preferred server port; overrides `port`. Default: random locally, 47420 on a remote session.                                     |
+| `SPECTATER_IDLE_TIMEOUT` | Seconds before an unused server stops itself. Default 1800; `0` disables.                                                        |
 
 Review state lives outside your repository and is never uploaded. Back it up separately if you need the history.
 

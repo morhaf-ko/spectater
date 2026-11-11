@@ -8,6 +8,7 @@ Agents often run on a machine other than the one with the reviewer's browser: an
 
 - The server accepts `localhost` and `127.0.0.1` on any port, with `Origin` matching the request's own host, so forwarded and remapped loopback URLs work. It still binds `127.0.0.1` only and every data request still needs the review capability.
 - `open` tries `$BROWSER` before the platform opener, and skips opening on Linux without a display or `$BROWSER` instead of failing.
+- `SPECTATER_REMOTE=1|0` overrides remote detection for sessions it misses, such as a macOS host in tmux over SSH. Remote sessions never run the platform opener, which would open on the wrong machine.
 - A `port` setting and `SPECTATER_PORT` choose a stable port. When the session looks remote and no port is set, the server prefers a documented default port, falling back to the next free port in a small range.
 - When the session looks remote, `open` adds an `access` object to its JSON with the exact SSH tunnel command for the port in use.
 - An opt-in `publicUrl` setting names the address a reverse proxy the reviewer runs (for example `tailscale serve`) exposes for the configured port. The server accepts exactly that host and origin and prints review links on it. In a codespace the public URL is derived from the codespace's environment.

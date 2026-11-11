@@ -34,11 +34,11 @@ DNS rebinding works by making a browser send requests with the attacker's hostna
 
 ### Browser opening
 
-Order: `$BROWSER`, then `open` on macOS or `xdg-open` on Linux. `$BROWSER` is a colon-separated list of executables, each run without a shell with the URL as its only argument, stopping at the first that exits 0. On Linux with no `DISPLAY`, `WAYLAND_DISPLAY` or `$BROWSER`, no opener runs and `open` reports `opened: false` without writing an opener error.
+Order: `$BROWSER`, then `open` on macOS or `xdg-open` on Linux. `$BROWSER` is a colon-separated list of executables, each run without a shell with the URL as its only argument, stopping at the first that exits 0. In a remote session the platform opener is skipped: `open` reports `opened: false` without writing an opener error unless a `$BROWSER` helper failed.
 
 ### Remote detection
 
-A session is remote when `SSH_CONNECTION` or `SSH_TTY` is set, when a codespace is detected, or on Linux without `DISPLAY` and `WAYLAND_DISPLAY`. The headless rule catches multiplexer panes. Detection only chooses the default port and adds `access`; it never widens what the server accepts.
+A session is remote when `SSH_CONNECTION` or `SSH_TTY` is set, when a codespace is detected, or on Linux without `DISPLAY` and `WAYLAND_DISPLAY`. The headless rule catches multiplexer panes on Linux servers. `SPECTATER_REMOTE` set to `1`/`true` or `0`/`false` overrides detection for the cases it misses or misjudges: a macOS host or a Linux desktop reached over SSH from a tmux session that lost the SSH variables or kept `DISPLAY`. Other values are an error. Detection chooses the default port, adds `access` and stops the platform opener, which would open on the wrong machine; it never widens what the server accepts.
 
 ### Port selection
 
@@ -67,4 +67,4 @@ The server record keeps the loopback URL for agent requests and stores the publi
 
 - Proxy behaviour is unverified: whether `tailscale serve` and Codespaces pass the original `Host` and stream the `/events` response unbuffered. Origin acceptance covers a proxy that rewrites `Host` to loopback; streaming is checked by a smoke test before release.
 - A public URL lets anyone who reaches the proxy and holds the review URL read and comment, as with loopback today. SECURITY.md states this and recommends tailnet-only or private forwarding.
-- Headless detection misclassifies a Linux desktop session that lacks `DISPLAY` in its environment; the effect is a stable port and an extra `access` hint, not exposure.
+- Detection misclassifies some sessions, such as a Linux desktop session without `DISPLAY` or a macOS host in tmux over SSH. The effect is a port, hint or opener choice, never exposure, and `SPECTATER_REMOTE` corrects it.

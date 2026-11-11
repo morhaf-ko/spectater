@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { PORT_RANGE } from './access.js';
+import { PORT_RANGE, remoteSession } from './access.js';
 import { feedback, feedbackMarkdown } from './storage.js';
 import { watchChange } from './watch.js';
 
@@ -336,8 +336,8 @@ export async function startServer(review, options = {}) {
 
 const openers = { darwin: 'open', linux: 'xdg-open' };
 /**
- * Opens the URL with each `$BROWSER` executable in turn, then the platform opener. Resolves false
- * without running anything on Linux with no display and no `$BROWSER`.
+ * Opens the URL with each `$BROWSER` executable in turn, then the platform opener. In a remote
+ * session the platform opener would open on the wrong machine, so it resolves false instead.
  */
 export async function openBrowser(
   url,
@@ -355,7 +355,7 @@ export async function openBrowser(
       failure = error;
     }
   }
-  if (platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY) {
+  if (remoteSession(env, platform)) {
     if (failure) throw failure;
     return false;
   }
