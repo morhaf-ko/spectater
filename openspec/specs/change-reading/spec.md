@@ -136,7 +136,7 @@ The system SHALL render Markdown deterministically from exact document snapshots
 
 ### Requirement: Bounded local access
 
-The system SHALL serve only the selected manifest on loopback and authorize review requests with a per-process capability. It MUST reject unaccepted hosts, foreign mutation origins, unauthorized requests, oversized input and filesystem paths outside the selected change.
+The system SHALL serve only the selected manifest on loopback and, when enabled, the tailnet address and authorize review requests with a per-process capability. It MUST reject unaccepted hosts, foreign mutation origins, unauthorized requests, oversized input and filesystem paths outside the selected change.
 
 #### Scenario: Cross-site write
 
@@ -155,7 +155,7 @@ The system SHALL serve only the selected manifest on loopback and authorize revi
 
 ### Requirement: Accepted hosts and origins
 
-The system SHALL accept requests whose host is `127.0.0.1`, `localhost` or `[::1]` with any port or none, or the host of the active public URL. It MUST require any request origin to equal the request's own loopback host or the active public origin.
+The system SHALL accept requests whose host is `127.0.0.1`, `localhost` or `[::1]` with any port or none, or the host of the active public or tailnet URL. It MUST require any request origin to equal the request's own loopback host or the active public origin.
 
 #### Scenario: Forwarded loopback address
 

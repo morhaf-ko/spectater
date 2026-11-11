@@ -86,6 +86,11 @@ The system SHALL persist acknowledged comments and batches privately outside can
 - **WHEN** another writer conflicts, persistence fails or stored data is invalid
 - **THEN** the operation reports failure without false acknowledgement, discarding prior valid data or overwriting another writer
 
+#### Scenario: Windows storage
+
+- **WHEN** the state directory is outside the user profile on Windows
+- **THEN** opening the review fails with an error naming the profile requirement and writes no state
+
 ### Requirement: Incremental submission
 
 The system SHALL submit only new or changed open comments by default, comparing source anchors and bodies against their latest active submission. It MUST NOT silently resend unchanged unresolved feedback or submit another version of a comment while its prior batch is still queued; correction of queued entries uses explicit batch editing. Replacing a paused batch MUST use its current open saved comments and preserve prior immutable entries.
