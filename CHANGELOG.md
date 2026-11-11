@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.4.0...spectater-v0.5.0) (2026-11-11)
+
+
+### Features
+
+* reach reviews from another machine ([#20](https://github.com/morhaf-ko/spectater/issues/20)) ([75f4f06](https://github.com/morhaf-ko/spectater/commit/75f4f06f74d25cf598298ac34709b5e61f29e3a4))
+
 ## [0.4.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.3.0...spectater-v0.4.0) (2026-11-11)
 
 
