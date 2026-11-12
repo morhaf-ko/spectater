@@ -159,7 +159,7 @@ Review state lives outside your repository and is never uploaded. Back it up sep
 
 ## Security and limits
 
-The server listens on `127.0.0.1`, plus your tailnet address when Tailscale is running, and accepts `localhost`, `127.0.0.1` or `[::1]` on any port (for forwards) plus your `publicUrl` or tailnet name. Agent commands are accepted on loopback only. The URL contains a private token in its fragment; anyone with it can read and comment on the review, so do not share it. The reader page opens from links on other sites, such as a web chat, while data requests and changes from other sites are refused. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. See [SECURITY.md](SECURITY.md) to report a vulnerability.
+The server listens on `127.0.0.1`, plus your tailnet address when Tailscale is running, and accepts `localhost`, `127.0.0.1` or `[::1]` on any port (for forwards) plus your `publicUrl` or tailnet name. Agent commands are accepted on loopback only. The URL contains a private token in its fragment; anyone with it can read and comment on the review, so do not share it. The reader page opens from links on other sites, such as a web chat, and from links a chat or tracker rewrote with a query string such as `?utm_source=…`, while data requests and changes from other sites are refused. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Contributing
 
