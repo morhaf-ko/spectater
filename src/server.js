@@ -271,10 +271,10 @@ export async function startServer(review, options = {}) {
         requestOrigin &&
         (requestOrigin === external || (loopback && requestOrigin === `http://${host}`));
       if (requestOrigin && !sameOrigin) return send(403, { error: 'Foreign origin refused.' });
-      if (request.headers['sec-fetch-site'] === 'cross-site')
-        return send(403, { error: 'Cross-site request refused.' });
       const url = new URL(request.url, origin);
       if (url.search) return send(404, { error: 'Unknown route.' });
+      // The shell and assets hold no review data (the capability stays in the fragment), so links
+      // from other sites load the reader; everything past here refuses cross-site requests.
       if (request.method === 'GET' && url.pathname === route) return send(200, shell, 'text/html');
       if (request.method === 'GET' && assets.has(url.pathname)) {
         const [file, type] = assets.get(url.pathname);
@@ -284,6 +284,8 @@ export async function startServer(review, options = {}) {
           type,
         );
       }
+      if (request.headers['sec-fetch-site'] === 'cross-site')
+        return send(403, { error: 'Cross-site request refused.' });
       const token = request.headers.authorization || '';
       const expected = `Bearer ${capability}`;
       if (

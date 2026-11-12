@@ -151,7 +151,7 @@ No configuration is required. An optional `~/.config/spectater/config.json` (or 
 | `SPECTATER_STATE_DIR`    | Where reviews are stored. Default: `~/Library/Application Support/SpecTater` on macOS, `$XDG_STATE_HOME/spectater` on Linux, `%LOCALAPPDATA%\SpecTater` on Windows, where it must stay inside your user profile. |
 | `SPECTATER_REMOTE`       | `1` or `0` forces remote or local behaviour when detection is wrong, for example `1` on a macOS host reached over SSH from tmux.                                                                                 |
 | `SPECTATER_PORT`         | Preferred server port; overrides `port`. Default: random locally, 47420 on a remote session. A `publicUrl` stays tied to `port`.                                                                                 |
-| `SPECTATER_IDLE_TIMEOUT` | Seconds before an unused server stops itself. Default 1800; `0` disables.                                                                                                                                        |
+| `SPECTATER_IDLE_TIMEOUT` | Seconds a server stays up with no reader page open and no `wait` running, then stops itself; its URL stops working and the next `open` prints a new one. Default 1800; `0` disables.                             |
 | `SPECTATER_TAILSCALE`    | `0` stops the server from listening on the tailnet address.                                                                                                                                                      |
 | `SPECTATER_HERDR_CHIME`  | `1` inside [Herdr](https://herdr.dev) shows a Herdr notification with a chime when the agent starts waiting for your feedback, once per batch.                                                                   |
 
@@ -159,7 +159,7 @@ Review state lives outside your repository and is never uploaded. Back it up sep
 
 ## Security and limits
 
-The server listens on `127.0.0.1`, plus your tailnet address when Tailscale is running, and accepts `localhost`, `127.0.0.1` or `[::1]` on any port (for forwards) plus your `publicUrl` or tailnet name. Agent commands are accepted on loopback only. The URL contains a private token; anyone with it can read and comment on the review, so do not share it. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. See [SECURITY.md](SECURITY.md) to report a vulnerability.
+The server listens on `127.0.0.1`, plus your tailnet address when Tailscale is running, and accepts `localhost`, `127.0.0.1` or `[::1]` on any port (for forwards) plus your `publicUrl` or tailnet name. Agent commands are accepted on loopback only. The URL contains a private token in its fragment; anyone with it can read and comment on the review, so do not share it. The reader page opens from links on other sites, such as a web chat, while data requests and changes from other sites are refused. Markdown is rendered without raw HTML, scripts or remote images, and SpecTater never writes to your Markdown. Limits: 1 MiB per file, 128 artifacts, 10,000 characters per selection, comment or message. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Contributing
 
