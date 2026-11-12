@@ -58,6 +58,8 @@ const workflow = `Review loop:
    Starts the review server in the background and opens the browser when one is available.
    No browser is needed: give the user the printed URL, and only to them. When the result has
    "access", the user's browser is on another machine; pass on its tunnel command with the URL.
+   When "access" has both "command" and "localUrl", the URL can still be blocked by Tailscale
+   ACLs or a firewall: also give its tunnel command and "localUrl" as the fallback.
 3. spectater wait <change>
    Blocks until the reviewer submits feedback. Prints one JSON object; act on "status":
    - batch:            feedback is in "batch". Continue with step 4.

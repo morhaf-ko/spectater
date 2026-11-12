@@ -105,6 +105,63 @@ test('access names the tunnel for remote sessions and the public mode for proxie
   );
 });
 
+test('public access in a remote SSH-capable session also carries a tunnel fallback', () => {
+  const host = os.hostname().split('.')[0];
+  const record = {
+    url: 'http://127.0.0.1:47420/review/x#cap',
+    port: 47420,
+    publicUrl: 'https://forge.example.ts.net:47420/review/x#cap',
+  };
+  const ssh = { SSH_CONNECTION: '10.0.0.2 5000 10.0.0.1 22' };
+  assert.deepEqual(accessFor(record, {}, ssh, 'linux', false), {
+    mode: 'public',
+    port: 47420,
+    command: `ssh -N -L 47420:127.0.0.1:47420 ${host}`,
+    localUrl: record.url,
+  });
+  assert.equal(
+    accessFor(record, { port: 47420, publicUrl: 'https://p' }, {}, 'linux', false).localUrl,
+    record.url,
+    'headless host with a configured proxy',
+  );
+  assert.deepEqual(
+    accessFor(record, {}, {}, 'linux', true),
+    { mode: 'public', port: 47420 },
+    'no SSH into the container',
+  );
+  assert.deepEqual(
+    accessFor(record, {}, { ...codespace, ...ssh }, 'linux', false),
+    { mode: 'public', port: 47420 },
+    'a codespace host name is not an SSH target',
+  );
+  assert.deepEqual(
+    accessFor(
+      record,
+      { port: 47420, publicUrl: 'https://p' },
+      { ...codespace, ...ssh },
+      'linux',
+      false,
+    ),
+    { mode: 'public', port: 47420 },
+    'not even with a configured proxy',
+  );
+  assert.equal(
+    accessFor(record, {}, ssh, 'linux', true).localUrl,
+    record.url,
+    'sshd inside the container',
+  );
+  assert.deepEqual(
+    accessFor(record, {}, desktop, 'linux', false),
+    { mode: 'public', port: 47420 },
+    'a local browser needs no fallback',
+  );
+  assert.equal(
+    accessFor(record, {}, { ...desktop, SPECTATER_REMOTE: '1' }, 'linux', false).localUrl,
+    record.url,
+    'forced remote',
+  );
+});
+
 test('handoff keeps the url and access instructions for every remote mode, even after a helper ran', () => {
   assert.equal(handoffFor(undefined, true), 'The browser is open.');
   assert.equal(handoffFor(undefined, false), 'Give the reviewer the url (keep it private).');
@@ -123,6 +180,17 @@ test('handoff keeps the url and access instructions for every remote mode, even 
     handoffFor({ mode: 'public', port: 47420 }, true),
     /possibly not on the reviewer's machine/,
   );
+  const fallback = {
+    mode: 'public',
+    port: 47420,
+    command: 'ssh h',
+    localUrl: 'http://127.0.0.1:47420/r#c',
+  };
+  for (const opened of [false, true])
+    assert.match(
+      handoffFor(fallback, opened),
+      /Give the reviewer the url \(keep it private\) .*access\.command.*access\.localUrl/,
+    );
 });
 
 test('Kubernetes pods count as containers', () => {

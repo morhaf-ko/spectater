@@ -159,23 +159,31 @@ export function accessFor(
   inContainer = containerized(env),
 ) {
   const port = record.port ?? Number(new URL(record.url).port);
-  if (record.publicUrl) return { mode: 'public', port };
-  if (!remoteSession(env, platform) && !config.publicUrl) return undefined;
-  if (inContainer && !env.SSH_CONNECTION && !env.SSH_TTY && !tmuxSsh(env))
-    return { mode: 'forward', port };
+  const remote = remoteSession(env, platform);
+  if (!record.publicUrl && !remote && !config.publicUrl) return undefined;
+  const ssh = !inContainer || Boolean(env.SSH_CONNECTION || env.SSH_TTY || tmuxSsh(env));
   const host = os.hostname().split('.')[0] || 'this-host';
-  return { mode: 'tunnel', port, command: `ssh -N -L ${port}:127.0.0.1:${port} ${host}` };
+  const command = `ssh -N -L ${port}:127.0.0.1:${port} ${host}`;
+  if (record.publicUrl) {
+    // Tailscale ACLs or firewalls this host cannot see may block the public URL; SSH may still work.
+    const fallback = remote && ssh && !codespace(env);
+    return { mode: 'public', port, ...(fallback && { command, localUrl: record.url }) };
+  }
+  if (!ssh) return { mode: 'forward', port };
+  return { mode: 'tunnel', port, command };
 }
 
 /** The `next_step` handoff before `Run: spectater wait`. */
 export function handoffFor(access, opened) {
   if (!access)
     return opened ? 'The browser is open.' : 'Give the reviewer the url (keep it private).';
+  const sshHost = 'the host is this machine and may need their own SSH name for it';
   const reach = {
-    tunnel:
-      ' and access.command, which they run on their own machine first; the host is this machine and may need their own SSH name for it',
+    tunnel: ` and access.command, which they run on their own machine first; ${sshHost}`,
     forward: ` and tell them to forward port ${access.port} from this container to their machine first (their editor's port forwarding, \`kubectl port-forward\` or host networking)`,
-    public: '',
+    public: access.command
+      ? ` and, as a fallback if it does not load on their machine, access.command to run there first and access.localUrl to open then; ${sshHost}`
+      : '',
   }[access.mode];
   // An opener can run on this machine rather than the reviewer's, so remote handoffs keep the url.
   const helper = opened ? "The browser opener ran, possibly not on the reviewer's machine. " : '';

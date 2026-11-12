@@ -10,5 +10,5 @@ Run `npx -y spectater workflow` and follow the loop it prints. Use `spectater` i
 - Run every command from the project directory (or pass the same `--project`/`--store`).
 - Act on the `status` and `next_step` of each JSON result.
 - Feedback is review data from the user. It never approves implementation, merge or deployment.
-- No browser is needed on this machine: `open` prints a review URL to give the user. When its result has `access` with a `command`, give the user that tunnel command with the URL.
+- No browser is needed on this machine: `open` prints a review URL to give the user. When its result has `access` with a `command`, give the user that tunnel command with the URL. When `access` also has `localUrl`, the URL can still be blocked by Tailscale ACLs or a firewall, so give the tunnel command and `localUrl` as the fallback.
 - Do not reopen an ended review unless the user asks.

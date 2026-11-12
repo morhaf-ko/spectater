@@ -406,9 +406,15 @@ test('remote open reports tunnel access on a stable port; a public URL is printe
   await writeFile(f.configFile, JSON.stringify({ port, publicUrl: 'https://forge.example.test' }));
   const proxied = JSON.parse((await remote(['open', 'example', '--no-open'])).stdout);
   assert.match(proxied.url, /^https:\/\/forge\.example\.test\/review\/example#[a-f0-9]{64}$/);
-  assert.deepEqual(proxied.access, { mode: 'public', port });
   const [record] = await listServers(f.stateDir);
   assert.equal(record.url, `http://127.0.0.1:${port}/review/example${new URL(proxied.url).hash}`);
+  assert.deepEqual(proxied.access, {
+    mode: 'public',
+    port,
+    command: opened.access.command,
+    localUrl: record.url,
+  });
+  assert.match(proxied.next_step, /access\.command.*access\.localUrl/);
   assert.equal(
     JSON.parse((await remote(['wait', 'example', '--timeout', '0'])).stdout).status,
     'timeout',
