@@ -41,5 +41,5 @@ For a remote session or an applicable public URL, `open` SHALL add an `access` o
 
 #### Scenario: Codespace URL
 
-- **WHEN** open runs in a codespace without `publicUrl`
+- **WHEN** open runs in a codespace, with or without `publicUrl`
 - **THEN** `access` has the public mode and port only

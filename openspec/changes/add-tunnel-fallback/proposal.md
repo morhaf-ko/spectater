@@ -7,7 +7,7 @@ When the reviewer's browser is on another machine and `open` prints a tailnet or
 ## What changes
 
 - In a remote session where an SSH tunnel to this host can work, a `public` access object also carries `command`, the same SSH tunnel command as `tunnel` mode, and `localUrl`, the loopback review URL to open once the tunnel runs. `mode` stays `public`; the fields are additive.
-- Local sessions, containers without SSH and codespace URLs keep the plain `public` object.
+- Local sessions, containers without SSH and codespaces keep the plain `public` object.
 - The `open` next step, the `workflow` text, the skill and README tell agents to give the reviewer the URL plus the tunnel command and local URL as a fallback.
 - SpecTater does not probe reachability, start tunnels or change Tailscale or proxy behaviour.
 

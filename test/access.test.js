@@ -134,6 +134,32 @@ test('public access in a remote SSH-capable session also carries a tunnel fallba
     { mode: 'public', port: 47420 },
     'a codespace host name is not an SSH target',
   );
+  assert.deepEqual(
+    accessFor(
+      record,
+      { port: 47420, publicUrl: 'https://p' },
+      { ...codespace, ...ssh },
+      'linux',
+      false,
+    ),
+    { mode: 'public', port: 47420 },
+    'not even with a configured proxy',
+  );
+  assert.equal(
+    accessFor(record, {}, ssh, 'linux', true).localUrl,
+    record.url,
+    'sshd inside the container',
+  );
+  assert.deepEqual(
+    accessFor(record, {}, desktop, 'linux', false),
+    { mode: 'public', port: 47420 },
+    'a local browser needs no fallback',
+  );
+  assert.equal(
+    accessFor(record, {}, { ...desktop, SPECTATER_REMOTE: '1' }, 'linux', false).localUrl,
+    record.url,
+    'forced remote',
+  );
 });
 
 test('handoff keeps the url and access instructions for every remote mode, even after a helper ran', () => {

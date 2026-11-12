@@ -166,10 +166,8 @@ export function accessFor(
   const command = `ssh -N -L ${port}:127.0.0.1:${port} ${host}`;
   if (record.publicUrl) {
     // Tailscale ACLs or firewalls this host cannot see may block the public URL; SSH may still work.
-    const fallback = remote && ssh && !(codespace(env) && !config.publicUrl);
-    return fallback
-      ? { mode: 'public', port, command, localUrl: record.url }
-      : { mode: 'public', port };
+    const fallback = remote && ssh && !codespace(env);
+    return { mode: 'public', port, ...(fallback && { command, localUrl: record.url }) };
   }
   if (!ssh) return { mode: 'forward', port };
   return { mode: 'tunnel', port, command };
