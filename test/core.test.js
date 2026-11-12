@@ -518,6 +518,44 @@ test('cross-site navigation loads the reader; cross-site API requests and writes
   assert.equal(r.state.revision, revision);
 });
 
+test('a review link with a query string loads the reader; other routes reject query strings', async (t) => {
+  const f = await fixture();
+  const r = await openReview(f.options, { directory: f.stateDir });
+  const server = await startServer(r);
+  t.after(async () => {
+    await server.close();
+    await f.cleanup();
+  });
+  const token = `Bearer ${new URL(server.url).hash.slice(1)}`;
+  const query = '?utm_source=chat&utm_medium=link';
+  const navigate = { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate' };
+  assert.equal(
+    await request(`${server.origin}${server.route}${query}`, navigate),
+    200,
+    'review route',
+  );
+  assert.equal(
+    await request(`${server.origin}${server.route}${query}`, { Authorization: token }, 'POST'),
+    404,
+    'review route write',
+  );
+  assert.equal(await request(`${server.origin}/app.js${query}`), 404, 'asset');
+  assert.equal(
+    await request(`${server.origin}${server.route}/state${query}`, { Authorization: token }),
+    404,
+    'review data',
+  );
+  assert.equal(
+    await request(
+      `${server.origin}/agent/status${query}`,
+      { Authorization: token, 'Content-Type': 'application/json' },
+      'POST',
+    ),
+    404,
+    'agent route',
+  );
+});
+
 test('forwarded loopback hosts and the public origin are accepted; other origins are refused', async (t) => {
   const f = await fixture();
   const r = await openReview(f.options, { directory: f.stateDir });

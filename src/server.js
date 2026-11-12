@@ -272,10 +272,11 @@ export async function startServer(review, options = {}) {
         (requestOrigin === external || (loopback && requestOrigin === `http://${host}`));
       if (requestOrigin && !sameOrigin) return send(403, { error: 'Foreign origin refused.' });
       const url = new URL(request.url, origin);
-      if (url.search) return send(404, { error: 'Unknown route.' });
       // The shell and assets hold no review data (the capability stays in the fragment), so links
-      // from other sites load the reader; everything past here refuses cross-site requests.
+      // from other sites, or rewritten with a query string, load the reader; everything past here
+      // refuses cross-site requests.
       if (request.method === 'GET' && url.pathname === route) return send(200, shell, 'text/html');
+      if (url.search) return send(404, { error: 'Unknown route.' });
       if (request.method === 'GET' && assets.has(url.pathname)) {
         const [file, type] = assets.get(url.pathname);
         return send(
