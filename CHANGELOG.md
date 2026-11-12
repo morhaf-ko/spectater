@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/morhaf-ko/spectater/compare/spectater-v0.6.0...spectater-v0.6.1) (2026-11-12)
+
+
+### Miscellaneous Chores
+
+* remove dead code and stale docs ([2b846e0](https://github.com/morhaf-ko/spectater/commit/2b846e0e7f6a87ffbe88a5c3ef9f0ffcf326c73a))
+
 ## [0.6.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.5.0...spectater-v0.6.0) (2026-11-11)
 
 
