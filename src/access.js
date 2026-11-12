@@ -179,12 +179,12 @@ export function accessFor(
 export function handoffFor(access, opened) {
   if (!access)
     return opened ? 'The browser is open.' : 'Give the reviewer the url (keep it private).';
+  const sshHost = 'the host is this machine and may need their own SSH name for it';
   const reach = {
-    tunnel:
-      ' and access.command, which they run on their own machine first; the host is this machine and may need their own SSH name for it',
+    tunnel: ` and access.command, which they run on their own machine first; ${sshHost}`,
     forward: ` and tell them to forward port ${access.port} from this container to their machine first (their editor's port forwarding, \`kubectl port-forward\` or host networking)`,
     public: access.command
-      ? ' and, as a fallback if it does not load on their machine, access.command to run there first and access.localUrl to open then'
+      ? ` and, as a fallback if it does not load on their machine, access.command to run there first and access.localUrl to open then; ${sshHost}`
       : '',
   }[access.mode];
   // An opener can run on this machine rather than the reviewer's, so remote handoffs keep the url.
