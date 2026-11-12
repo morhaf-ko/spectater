@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/morhaf-ko/spectater/compare/spectater-v0.8.0...spectater-v0.8.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* load the reader from links on other sites ([#37](https://github.com/morhaf-ko/spectater/issues/37)) ([5d0bc9a](https://github.com/morhaf-ko/spectater/commit/5d0bc9ae146cfde72a010cb5addf77ea3674ee39))
+
 ## [0.8.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.7.0...spectater-v0.8.0) (2026-11-12)
 
 
