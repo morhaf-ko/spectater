@@ -528,7 +528,17 @@ test('a review link with a query string loads the reader; other routes reject qu
   });
   const token = `Bearer ${new URL(server.url).hash.slice(1)}`;
   const query = '?utm_source=chat&utm_medium=link';
-  assert.equal(await request(`${server.origin}${server.route}${query}`), 200, 'review route');
+  const navigate = { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate' };
+  assert.equal(
+    await request(`${server.origin}${server.route}${query}`, navigate),
+    200,
+    'review route',
+  );
+  assert.equal(
+    await request(`${server.origin}${server.route}${query}`, { Authorization: token }, 'POST'),
+    404,
+    'review route write',
+  );
   assert.equal(await request(`${server.origin}/app.js${query}`), 404, 'asset');
   assert.equal(
     await request(`${server.origin}${server.route}/state${query}`, { Authorization: token }),
