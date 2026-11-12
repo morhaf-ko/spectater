@@ -465,6 +465,59 @@ function request(url, headers, method = 'GET') {
   });
 }
 
+test('cross-site navigation loads the reader; cross-site API requests and writes are refused', async (t) => {
+  const f = await fixture();
+  const r = await openReview(f.options, { directory: f.stateDir });
+  const server = await startServer(r);
+  t.after(async () => {
+    await server.close();
+    await f.cleanup();
+  });
+  const url = new URL(server.url);
+  const token = `Bearer ${url.hash.slice(1)}`;
+  const crossSite = { 'Sec-Fetch-Site': 'cross-site' };
+  const { revision } = r.state;
+  const navigate = { ...crossSite, 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document' };
+  assert.equal(await request(`${server.origin}${server.route}`, navigate), 200, 'review route');
+  for (const asset of ['/app.js', '/theme.js', '/style.css', '/favicon.svg'])
+    assert.equal(await request(`${server.origin}${asset}`, crossSite), 200, asset);
+  for (const path of [
+    '/state',
+    '/events',
+    `/changes/${'a'.repeat(24)}`,
+    `/batch/${'a'.repeat(36)}`,
+  ])
+    assert.equal(
+      await request(`${server.origin}${server.route}${path}`, {
+        ...crossSite,
+        Authorization: token,
+      }),
+      403,
+      path,
+    );
+  const json = { ...crossSite, Authorization: token, 'Content-Type': 'application/json' };
+  assert.equal(
+    await request(
+      `${server.origin}${server.route}/action`,
+      { ...json, Origin: url.origin },
+      'POST',
+    ),
+    403,
+    'browser write',
+  );
+  assert.equal(
+    await request(
+      `${server.origin}${server.route}/refresh`,
+      { ...json, Origin: url.origin },
+      'POST',
+    ),
+    403,
+    'browser refresh',
+  );
+  assert.equal(await request(`${server.origin}/agent/status`, json, 'POST'), 403, 'agent route');
+  assert.equal(r.state.revision, revision);
+});
+
 test('forwarded loopback hosts and the public origin are accepted; other origins are refused', async (t) => {
   const f = await fixture();
   const r = await openReview(f.options, { directory: f.stateDir });
