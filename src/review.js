@@ -103,7 +103,7 @@ export async function openReview(options, dependencies = {}) {
         .filter((c) => c.deletedAt)
         .map((c) => ({ ...c, ...locate(c, current.get(c.documentId)) })),
       endedAt: state.endedAt,
-      approvedAt: state.approvedAt,
+      approved: Boolean(state.approved),
       endRequestedAt: state.endRequestedAt,
       changes: sourceChanges(state),
       hasPreviousSource: Boolean(state.previousDocuments),
@@ -173,11 +173,11 @@ export async function openReview(options, dependencies = {}) {
       if (pendingComments(state).length)
         throw new Error('Submit or resolve pending comments before approving.');
       actions.end(state);
-      state.approvedAt = state.endedAt;
+      state.approved = true;
     },
     resume(state) {
       delete state.endedAt;
-      delete state.approvedAt;
+      delete state.approved;
       delete state.endRequestedAt;
     },
     'cancel-batch'(state, input) {

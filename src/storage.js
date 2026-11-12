@@ -78,10 +78,7 @@ function validate(state, id) {
     (typeof state.endedAt !== 'string' || !Number.isFinite(Date.parse(state.endedAt)))
   )
     throw new Error('Corrupt review completion metadata.');
-  if (
-    state.approvedAt !== undefined &&
-    (typeof state.approvedAt !== 'string' || !Number.isFinite(Date.parse(state.approvedAt)))
-  )
+  if (state.approved !== undefined && typeof state.approved !== 'boolean')
     throw new Error('Corrupt review completion metadata.');
   if (
     state.endRequestedAt !== undefined &&

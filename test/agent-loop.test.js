@@ -128,12 +128,12 @@ test('approve ends the review with approved after any claimed batch, and resume 
   const claimed = await agent('wait', { timeout: 0 });
   await approve();
   assert.ok(review.state.endedAt);
-  assert.ok(review.view().approvedAt);
+  assert.equal(review.view().approved, true);
   assert.equal((await agent('wait', { timeout: 0 })).batch.id, claimed.batch.id);
   await agent('reply', { status: 'done', body: 'Handled.' });
   assert.equal((await agent('wait', { timeout: 0 })).status, 'approved');
   await agent('resume');
-  assert.equal(review.state.approvedAt, undefined);
+  assert.equal(review.state.approved, undefined);
   const pending = agent('wait', { timeout: 5000 });
   while (!(await agent('status')).listening) await tick();
   await approve();

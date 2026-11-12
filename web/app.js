@@ -242,7 +242,7 @@ function displaySourceStatus() {
 }
 function displayPresence() {
   if (state?.endedAt) {
-    $('listener-status').textContent = state.approvedAt
+    $('listener-status').textContent = state.approved
       ? 'Review approved · saved feedback retained'
       : 'Review ended · saved feedback retained';
     return;
@@ -470,6 +470,14 @@ async function operation(fn) {
     document.body.setAttribute('aria-busy', 'false');
   }
 }
+const actionMessages = {
+  end: 'Review ended. Saved feedback retained.',
+  approve: 'Review approved. The agent continues with the change as written.',
+  resume: 'Review resumed.',
+  'cancel-batch': 'Submission cancelled. Comments kept.',
+  'edit-batch': 'Delivery paused. Edit saved comments, then update the queued batch.',
+  delete: 'Comment deleted.',
+};
 async function action(input) {
   return operation(async () => {
     acceptState(await api('action', { ...input, revision: state.revision }));
@@ -484,25 +492,13 @@ async function action(input) {
     if (['end', 'approve'].includes(input.action)) closeComposer();
     display();
     announce(
-      input.action === 'end'
-        ? 'Review ended. Saved feedback retained.'
-        : input.action === 'approve'
-          ? 'Review approved. The agent continues with the change as written.'
-          : input.action === 'resume'
-            ? 'Review resumed.'
-            : input.action === 'submit'
-              ? state.endedAt
-                ? 'Review ended.'
-                : input.end
-                  ? 'Batch saved. The review ends once the agent receives it.'
-                  : 'Batch saved.'
-              : input.action === 'cancel-batch'
-                ? 'Submission cancelled. Comments kept.'
-                : input.action === 'edit-batch'
-                  ? 'Delivery paused. Edit saved comments, then update the queued batch.'
-                  : input.action === 'delete'
-                    ? 'Comment deleted.'
-                    : 'Saved.',
+      input.action === 'submit'
+        ? state.endedAt
+          ? 'Review ended.'
+          : input.end
+            ? 'Batch saved. The review ends once the agent receives it.'
+            : 'Batch saved.'
+        : actionMessages[input.action] || 'Saved.',
     );
     if (input.action === 'submit' && state.batches.length)
       await showBatch(state.batches.at(-1).id, false);

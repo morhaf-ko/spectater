@@ -2,8 +2,8 @@
 
 ## 1. Approve on the server
 
-- [x] 1.1 Add failing tests: an `approve` action ends the review with `approvedAt`, is refused with pending comments or outstanding submissions, a waiting agent receives `approved` (after any claimed batch), and resume clears it; verify with `bun run test`.
-- [x] 1.2 Implement `approve` in `src/review.js`, validate `approvedAt` in `src/storage.js`, return `approved` from `wait` in `src/server.js`; verify with `bun run test`.
+- [x] 1.1 Add failing tests: an `approve` action ends the review with `approved`, is refused with pending comments or outstanding submissions, a waiting agent receives `approved` (after any claimed batch), and resume clears it; verify with `bun run test`.
+- [x] 1.2 Implement `approve` in `src/review.js`, validate `approved` in `src/storage.js`, return `approved` from `wait` in `src/server.js`; verify with `bun run test`.
 
 ## 2. Agent guidance
 

@@ -430,7 +430,6 @@ textarea::placeholder {
   background: none;
   border-color: transparent;
   padding-inline: var(--space-2);
-  font-size: var(--text-sm);
   text-decoration: underline;
   text-underline-offset: 3px;
 }

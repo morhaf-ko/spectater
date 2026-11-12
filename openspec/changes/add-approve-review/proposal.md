@@ -22,4 +22,4 @@ When the reviewer reads a change, has no comments and clicks End review, `wait` 
 
 ## Impact
 
-`src/review.js`, `src/server.js`, `src/storage.js`, `bin/spectater.js` (workflow text and next steps), `web/`, `skills/spectater/SKILL.md`, README and tests. `approved` is additive and exits 0. Agents on older skills read the `next_step` of every result, and `npx -y spectater workflow` prints the new loop. Stored reviews without `approvedAt` load unchanged. Not breaking.
+`src/review.js`, `src/server.js`, `src/storage.js`, `bin/spectater.js` (workflow text and next steps), `web/`, `skills/spectater/SKILL.md`, README and tests. `approved` is additive and exits 0. Agents on older skills read the `next_step` of every result, and `npx -y spectater workflow` prints the new loop. Stored reviews without `approved` load unchanged. Not breaking.
