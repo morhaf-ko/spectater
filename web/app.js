@@ -230,7 +230,6 @@ function displayDocument() {
   $('rendered').innerHTML =
     d?.html ||
     '<p>Choose an existing Markdown artifact. Missing and unsupported artifacts appear in navigation.</p>';
-  $('source').hidden = mode !== 'source';
   $('rendered').hidden = mode !== 'rendered';
   $('source-view').hidden = mode !== 'source';
   $('source-mode').setAttribute('aria-pressed', String(mode === 'source'));

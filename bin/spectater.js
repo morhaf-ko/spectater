@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
   accessFor,
@@ -19,9 +19,10 @@ import {
   writeServer,
 } from '../src/agent.js';
 import { loadConfig } from '../src/config.js';
+import { createDiscovery, listChanges, missingChange, within } from '../src/discovery.js';
 import { readFileLimited } from '../src/files.js';
 import { setupHooks } from '../src/hooks.js';
-import { MAX_WAIT_MS } from '../src/server.js';
+import { MAX_WAIT_MS, openBrowser, startServer } from '../src/server.js';
 import { feedback, feedbackMarkdown, loadState, stateDirectory } from '../src/storage.js';
 
 const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
@@ -93,9 +94,7 @@ function print(result) {
 
 async function context(values, change) {
   const config = await loadConfig(values.config);
-  const directory = process.env.SPECTATER_STATE_DIR
-    ? stateDirectory()
-    : config.stateDirectory || stateDirectory();
+  const directory = (!process.env.SPECTATER_STATE_DIR && config.stateDirectory) || stateDirectory();
   const options = { project: values.project || '.', change, store: values.store };
   return { config, directory, options };
 }
@@ -107,7 +106,6 @@ async function running(values, change) {
 }
 
 async function listing(directory, { cwd, hook } = {}) {
-  const { within } = await import('../src/discovery.js');
   const records = (await listServers(directory)).filter(
     (record) => !cwd || record.root === cwd || within(record.root, cwd),
   );
@@ -148,7 +146,6 @@ const commands = {
     const access = accessFor(record, config);
     let opened = false;
     if (!values['no-open'] && config.openBrowser) {
-      const { openBrowser } = await import('../src/server.js');
       // A browser on this machine uses loopback, which works even where MagicDNS does not resolve.
       opened = await openBrowser(remote ? url : record.url).then(
         (result) => result,
@@ -171,9 +168,7 @@ const commands = {
 
   async serve(values, change) {
     const { config, directory, options } = await context(values, change);
-    const { createDiscovery } = await import('../src/discovery.js');
     const { openReview } = await import('../src/review.js');
-    const { startServer } = await import('../src/server.js');
     const tailnet = detectTailscale();
     const discover = createDiscovery();
     const manifest = await discover(options);
@@ -328,7 +323,6 @@ const commands = {
 
   async status(values, format) {
     const { directory } = await context(values);
-    const { realpath } = await import('node:fs/promises');
     const text = await listing(directory, {
       cwd: values.hook ? await realpath(values.project || '.') : undefined,
       hook: values.hook,
@@ -407,7 +401,6 @@ try {
     let change = argument;
     if (command === 'open' && !change) {
       // With exactly one active change there is nothing to choose.
-      const { listChanges, missingChange } = await import('../src/discovery.js');
       const names = await listChanges({ project: values.project || '.', store: values.store });
       if (names.length !== 1) throw new Error(missingChange(undefined, names));
       [change] = names;

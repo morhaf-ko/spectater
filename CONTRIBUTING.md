@@ -45,10 +45,13 @@ It verifies that GitHub Actions may open pull requests and that `CI_RUNNER`, `LI
 | -------------------------------- | ---------------------------------------------------------------------- |
 | `bin/spectater.js`               | CLI: argument parsing and one handler per command                      |
 | `src/agent.js`                   | Server registry, change-name lookup, detached start, agent HTTP client |
-| `src/server.js`                  | Loopback HTTP server for the browser and `/agent/*` routes             |
+| `src/server.js`                  | HTTP server for the browser and `/agent/*` routes                      |
+| `src/access.js`                  | Remote sessions, ports, Tailscale and Herdr handoff                    |
 | `src/review.js`                  | Review model: comments, batches, delivery, lifecycle                   |
+| `src/queue.js`                   | Batch status and which comments are pending                            |
 | `src/storage.js`                 | Private state files, writer lock, export formatting                    |
 | `src/discovery.js`               | Native OpenSpec discovery and safe file reads                          |
+| `src/files.js`, `src/config.js`  | Size-limited reads and the optional config file                        |
 | `src/markdown.js`                | Source-mapped Markdown rendering and anchors                           |
 | `src/watch.js`, `src/changes.js` | File watching and snapshot diffs                                       |
 | `src/hooks.js`                   | `setup hooks` for each agent                                           |

@@ -34,7 +34,6 @@
     "test:browser": "bun --bun node_modules/@playwright/test/cli.js test",
     "test:package": "bun scripts/package-test.js",
     "smoke": "node scripts/smoke.js",
-    "benchmark": "bun scripts/benchmark.js",
     "release:preflight": "node scripts/release-preflight.js",
     "lint": "biome ci .",
     "spec:check": "OPENSPEC_TELEMETRY=0 openspec validate --all --strict --no-interactive",

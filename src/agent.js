@@ -31,7 +31,7 @@ export async function removeServer(directory, reviewId) {
 }
 
 /** Returns the running server record for a review, removing records left by dead processes. */
-export async function readServer(directory, reviewId) {
+async function readServer(directory, reviewId) {
   let handle;
   try {
     handle = await open(

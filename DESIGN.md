@@ -1,6 +1,6 @@
 # Clean review interface
 
-The operator selected the OpenDesign Clean system and a minimal reader with system, light and dark themes. The existing artifact navigation, document and feedback layout stays in place.
+A minimal reader on the OpenDesign Clean system, with system, light and dark themes.
 
 Source: https://github.com/nexu-io/open-design/tree/07a86b1041531bfa0bec1006d9c0993985fee560/design-systems/clean. Concrete tokens.css and components.html take precedence over the package's conflicting generic typography/color prose. The adapted token source is Apache-2.0; retain docs/licenses/open-design.txt. Dark colors extend the light-only reference.
 
@@ -14,11 +14,11 @@ Desktop columns are 200px navigation, flexible reader and 300px feedback. Below 
 
 ## Essential interface
 
-Keep artifact navigation, rendered/source controls, text selection and submission. Selection opens a native, non-modal popover beside the selected text, focuses the comment input, and clamps to the viewport. Escape/outside click dismiss it; Resume draft recovers the text. The sidebar holds saved comments with Edit, Resolve, Delete and recoverable Undo/Restore actions. Submitted batches are unaffected by those changes. Put location, revision hashes and native status behind Details. Reveal export and retrieval information after choosing/submitting a batch. Remove repeated introductions, instructions and empty export fields. Preserve exact source content, precision labels, conflict messages and stale/orphaned feedback.
+Keep artifact navigation, rendered/source controls, text selection and submission. Selection opens a native, non-modal popover beside the selected text, focuses the comment input, and clamps to the viewport. Escape/outside click dismiss it; Resume draft recovers the text. The sidebar holds saved comments with Edit, Resolve, Delete and recoverable Undo/Restore actions. Submitted batches are unaffected by those changes. Put location, revision hashes and native status behind Details. Reveal export and retrieval information after choosing/submitting a batch. Preserve exact source content, precision labels, conflict messages and stale/orphaned feedback.
 
 The sun/moon button follows System initially and toggles the effective light/dark scheme on click. A secondary Use system theme action under Details clears the override. Save that preference in browser local storage for the current local origin; reopening on another port starts with System. Storage denial falls back to an in-memory choice. A small blocking local script applies the preference before styles paint. Theme changes only update root CSS variables; no document replacement, server request, polling or framework is involved.
 
-Keyboard focus, labeled native controls, selection contrast, errors, disabled actions and draft preservation apply to both themes. Keep motion absent. Inspect desktop/mobile light/dark screenshots separately from operator aesthetic acceptance.
+Keyboard focus, labeled native controls, selection contrast, errors, disabled actions and draft preservation apply to both themes. Keep motion absent.
 
 ## Identity and interaction details
 

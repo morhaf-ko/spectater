@@ -216,7 +216,7 @@ export async function readDocument(review, document) {
     if (!stat.isFile() || stat.size > 1024 * 1024)
       throw new Error('Artifact must be a regular file smaller than 1 MiB.');
     const bytes = await readLimited(handle, 1024 * 1024);
-    if (bytes.length > 1024 * 1024 || (await realpath(document.file)) !== canonical)
+    if ((await realpath(document.file)) !== canonical)
       throw new Error('Document changed during read.');
     const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
     return { path: document.path, hash: hash(bytes), source };
