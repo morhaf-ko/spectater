@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/morhaf-ko/spectater/compare/spectater-v0.6.1...spectater-v0.7.0) (2026-11-12)
+
+
+### Features
+
+* add SSH tunnel fallback to public review access ([#27](https://github.com/morhaf-ko/spectater/issues/27)) ([559c3e3](https://github.com/morhaf-ko/spectater/commit/559c3e3c3d98006bbafedffafbac5fab92f72ba4))
+
 ## [0.6.1](https://github.com/morhaf-ko/spectater/compare/spectater-v0.6.0...spectater-v0.6.1) (2026-11-12)
 
 
