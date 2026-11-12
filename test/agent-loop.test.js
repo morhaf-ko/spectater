@@ -123,7 +123,7 @@ test('approve ends the review with approved after any claimed batch, and resume 
   await comment(review, 'Unsubmitted.');
   await assert.rejects(approve(), /Submit or resolve pending comments/);
   await review.mutate({ action: 'submit', revision: review.state.revision });
-  await assert.rejects(approve(), /Deliver or cancel/);
+  await assert.rejects(approve(), /Deliver or cancel queued submissions before approving/);
   assert.equal(review.state.endedAt, undefined);
   const claimed = await agent('wait', { timeout: 0 });
   await approve();
@@ -138,6 +138,8 @@ test('approve ends the review with approved after any claimed batch, and resume 
   while (!(await agent('status')).listening) await tick();
   await approve();
   assert.equal((await pending).status, 'approved');
+  await agent('end');
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'ended', 'end replaces approval');
   await agent('resume');
   await agent('end');
   assert.equal((await agent('wait', { timeout: 0 })).status, 'ended');

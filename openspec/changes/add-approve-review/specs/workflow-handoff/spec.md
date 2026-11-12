@@ -2,7 +2,7 @@
 
 ### Requirement: Review approval
 
-The system SHALL let the reviewer approve a review when no comments are unsubmitted and no submission is queued or paused. Approval MUST end the review, record that it was approved, and make waiting listeners receive `approved` once any claimed batch is answered. Resume MUST clear the approval.
+The system SHALL let the reviewer approve a review when no comments are unsubmitted and no submission is queued or paused. Approval MUST end the review, record that it was approved, and make waiting listeners receive `approved` once any claimed batch is answered. Resume and ending without a decision MUST clear the approval.
 
 #### Scenario: Approve while an agent waits
 
@@ -14,12 +14,36 @@ The system SHALL let the reviewer approve a review when no comments are unsubmit
 - **WHEN** an approval is requested while comments are unsubmitted or a submission is queued or paused
 - **THEN** it is refused and the review stays active with its feedback unchanged
 
+#### Scenario: End after approval
+
+- **WHEN** an approved review is ended without a decision, for example with `spectater end`
+- **THEN** the approval is cleared and the next wait returns ended
+
 #### Scenario: Resume after approval
 
 - **WHEN** the operator resumes an approved review and later ends it without a decision
 - **THEN** the review is active again and the next wait after ending returns ended
 
 ## MODIFIED Requirements
+
+### Requirement: Explicit review completion
+
+The system SHALL persist an ended review state and require explicit operator resumption before accepting further feedback. Ending MUST preserve saved history, refuse abandonment of queued or paused submissions, and return an ended result to waiting CLI listeners, or approved after an approval. Ending without approving MUST NOT stop a model or imply approval. Already delivered work MAY post a result after review completion.
+
+#### Scenario: End a review
+
+- **WHEN** the operator ends a review without approving and with no undelivered submissions
+- **THEN** feedback mutations become read-only, saved data remains readable and waiting agents receive ended guidance to stop listening without reopening uninvited
+
+#### Scenario: Outstanding feedback
+
+- **WHEN** the operator attempts to end with queued or paused submissions
+- **THEN** the reader asks them to deliver or cancel those submissions without discarding their contents
+
+#### Scenario: Resume explicitly
+
+- **WHEN** the operator selects Resume review or opens with --reopen
+- **THEN** the same review resumes against validated current source while ordinary open/restart never silently clears completion
 
 ### Requirement: Structured agent results
 

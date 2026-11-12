@@ -168,10 +168,13 @@ export async function openReview(options, dependencies = {}) {
         throw new Error('Deliver or cancel queued submissions before ending the review.');
       state.endedAt ||= now();
       delete state.endRequestedAt;
+      delete state.approved;
     },
     approve(state) {
       if (pendingComments(state).length)
         throw new Error('Submit or resolve pending comments before approving.');
+      if (outstanding(state))
+        throw new Error('Deliver or cancel queued submissions before approving.');
       actions.end(state);
       state.approved = true;
     },
