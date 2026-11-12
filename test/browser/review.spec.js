@@ -474,12 +474,16 @@ test('message composer, keyboard shortcuts and Send & End reach a waiting agent'
     const second = JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).batch;
     await run(['reply', 'example', '--batch', String(second.sequence), '--message', 'Done.']);
     const reviewAction = page.locator('#review-lifecycle');
-    await expect(reviewAction).toHaveText('End review');
-    await expect(page.getByRole('button', { name: /^(End review|Send & End)$/ })).toHaveCount(1);
+    const endWithout = page.getByRole('button', { name: 'End without approving', exact: true });
+    await expect(reviewAction).toHaveText('Approve');
+    await expect(page.getByRole('button', { name: /^(Approve|Send & End)$/ })).toHaveCount(1);
+    await expect(endWithout).toBeVisible();
     await page.locator('#agent-message').fill('Last note before ending.');
     await expect(reviewAction).toHaveText('Send & End');
+    await expect(endWithout).toBeHidden();
     await page.locator('#agent-message').fill('');
-    await expect(reviewAction).toHaveText('End review');
+    await expect(reviewAction).toHaveText('Approve');
+    await expect(endWithout).toBeVisible();
     await page.locator('#agent-message').fill('Last note before ending.');
     await page.getByRole('button', { name: 'Send & End', exact: true }).click();
     await expect(page.locator('#end-pending')).toBeVisible();
@@ -487,6 +491,44 @@ test('message composer, keyboard shortcuts and Send & End reach a waiting agent'
     expect(final.batch.message).toBe('Last note before ending.');
     await expect(page.locator('#listener-status')).toContainText('Review ended');
     await run(['reply', 'example', '--message', 'Final changes made.']);
+    expect(JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).status).toBe(
+      'ended',
+    );
+  } finally {
+    await server?.close();
+    await f.cleanup();
+  }
+});
+
+test('Approve ends a review with nothing pending and a waiting agent receives approved', async ({
+  page,
+}) => {
+  const f = await fixture();
+  let server;
+  try {
+    const review = await openReview(f.options, { directory: f.stateDir });
+    server = await startServer(review);
+    await page.goto(server.url);
+    await expect(page.locator('#message')).toContainText('Ready.');
+    const run = await register(f, review, server);
+    const waiting = run(['wait', 'example', '--timeout', '30']);
+    await expect(page.locator('#listener-status')).toContainText('Feedback listener waiting');
+    const endWithout = page.getByRole('button', { name: 'End without approving', exact: true });
+    await expect(endWithout).toBeVisible();
+    await page.getByRole('button', { name: 'Approve', exact: true }).click();
+    const approved = JSON.parse((await waiting).stdout);
+    expect(approved.status).toBe('approved');
+    expect(approved.next_step).toMatch(/accepted as written/);
+    await expect(page.locator('#listener-status')).toContainText('Review approved');
+    await expect(page.locator('#message')).toContainText('Review approved.');
+    await expect(page.locator('#review-lifecycle')).toHaveText('Resume review');
+    await expect(endWithout).toBeHidden();
+    await page.reload();
+    await expect(page.locator('#listener-status')).toContainText('Review approved');
+    await page.getByRole('button', { name: 'Resume review', exact: true }).click();
+    await expect(page.locator('#review-lifecycle')).toHaveText('Approve');
+    await endWithout.click();
+    await expect(page.locator('#listener-status')).toContainText('Review ended');
     expect(JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout).status).toBe(
       'ended',
     );
@@ -724,7 +766,7 @@ test('queued submissions can be paused, replaced and cancelled; corrections send
   }
 });
 
-test('What changed compares snapshots and End review preserves read-only history until explicit resume', async ({
+test('What changed compares snapshots and ending preserves read-only history until explicit resume', async ({
   page,
 }) => {
   const f = await fixture();
@@ -750,7 +792,7 @@ test('What changed compares snapshots and End review preserves read-only history
     await selectSource(page, 'exact');
     await page.locator('#comment').fill('Do not discard this draft.');
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'End review', exact: true }).click();
+    await page.getByRole('button', { name: 'End without approving', exact: true }).click();
     await expect(page.locator('#message')).toContainText('unsaved draft');
     await page.getByRole('button', { name: 'Resume draft', exact: true }).click();
     await page.locator('#save').click();
@@ -758,7 +800,7 @@ test('What changed compares snapshots and End review preserves read-only history
     await page.locator('#submit').click();
     await expect(page.locator('#message')).toContainText('Batch saved.');
     await expect(page.locator('body')).toHaveAttribute('aria-busy', 'false');
-    await page.getByRole('button', { name: 'End review', exact: true }).click();
+    await page.getByRole('button', { name: 'Approve', exact: true }).click();
     await expect(page.locator('#message')).toContainText('Deliver or cancel');
     await page.getByRole('button', { name: 'Cancel batch 1', exact: true }).click();
     await expect(page.locator('body')).toHaveAttribute('aria-busy', 'false');
@@ -775,8 +817,11 @@ test('What changed compares snapshots and End review preserves read-only history
     await expect(page.locator('#comments')).toContainText('Do not discard this draft.');
     await writeFile(f.file, `New source after review ended.\n\n${changed}`);
     await expect(
-      page.getByRole('button', { name: /^(End review|Send & End|Resume review)$/ }),
+      page.getByRole('button', { name: /^(Approve|Send & End|Resume review)$/ }),
     ).toHaveCount(1);
+    await expect(
+      page.getByRole('button', { name: 'End without approving', exact: true }),
+    ).toBeHidden();
     await page.getByRole('button', { name: 'Resume review', exact: true }).click();
     await expect(page.locator('#source')).toContainText('New source after review ended.');
     await expect(page.locator('#comments')).toContainText('stale · open');

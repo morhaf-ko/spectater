@@ -164,7 +164,8 @@ export async function startServer(review, options = {}) {
       const batch = await review.deliver();
       if (batch) announced = false;
       if (batch) finishWait(target, { status: 'batch', batch });
-      else if (review.state.endedAt) finishWait(target, { status: 'ended' });
+      else if (review.state.endedAt)
+        finishWait(target, { status: review.state.approved ? 'approved' : 'ended' });
     } catch (error) {
       finishWait(target, { status: 'error', error: error.message });
     }

@@ -242,7 +242,9 @@ function displaySourceStatus() {
 }
 function displayPresence() {
   if (state?.endedAt) {
-    $('listener-status').textContent = 'Review ended · saved feedback retained';
+    $('listener-status').textContent = state.approved
+      ? 'Review approved · saved feedback retained'
+      : 'Review ended · saved feedback retained';
     return;
   }
   $('listener-status').textContent = listeners
@@ -468,6 +470,14 @@ async function operation(fn) {
     document.body.setAttribute('aria-busy', 'false');
   }
 }
+const actionMessages = {
+  end: 'Review ended. Saved feedback retained.',
+  approve: 'Review approved. The agent continues with the change as written.',
+  resume: 'Review resumed.',
+  'cancel-batch': 'Submission cancelled. Comments kept.',
+  'edit-batch': 'Delivery paused. Edit saved comments, then update the queued batch.',
+  delete: 'Comment deleted.',
+};
 async function action(input) {
   return operation(async () => {
     acceptState(await api('action', { ...input, revision: state.revision }));
@@ -479,26 +489,16 @@ async function action(input) {
     }
     if (input.action === 'delete') undoDeletedId = input.id;
     if (input.action === 'submit') $('agent-message').value = '';
-    if (input.action === 'end') closeComposer();
+    if (['end', 'approve'].includes(input.action)) closeComposer();
     display();
     announce(
-      input.action === 'end'
-        ? 'Review ended. Saved feedback retained.'
-        : input.action === 'resume'
-          ? 'Review resumed.'
-          : input.action === 'submit'
-            ? state.endedAt
-              ? 'Review ended.'
-              : input.end
-                ? 'Batch saved. The review ends once the agent receives it.'
-                : 'Batch saved.'
-            : input.action === 'cancel-batch'
-              ? 'Submission cancelled. Comments kept.'
-              : input.action === 'edit-batch'
-                ? 'Delivery paused. Edit saved comments, then update the queued batch.'
-                : input.action === 'delete'
-                  ? 'Comment deleted.'
-                  : 'Saved.',
+      input.action === 'submit'
+        ? state.endedAt
+          ? 'Review ended.'
+          : input.end
+            ? 'Batch saved. The review ends once the agent receives it.'
+            : 'Batch saved.'
+        : actionMessages[input.action] || 'Saved.',
     );
     if (input.action === 'submit' && state.batches.length)
       await showBatch(state.batches.at(-1).id, false);
@@ -623,24 +623,31 @@ window.addEventListener('resize', closeComposer);
 function hasPendingFeedback() {
   return Boolean(state.pendingCommentIds.length || $('agent-message').value.trim());
 }
-$('review-lifecycle').addEventListener('click', () => {
-  if (state.endedAt) return void action({ action: 'resume' });
+function finishReview(decision) {
   if ($('comment').value)
     return announce('Save or clear the unsaved draft before ending the review.', true);
   if (hasPendingFeedback()) return void submit(true);
   editingId = undefined;
-  void action({ action: 'end' });
+  void action({ action: decision });
+}
+$('review-lifecycle').addEventListener('click', () => {
+  if (state.endedAt) return void action({ action: 'resume' });
+  finishReview('approve');
 });
+$('end-review').addEventListener('click', () => finishReview('end'));
 function updateSubmit() {
-  $('submit').disabled = Boolean(state.endedAt) || !hasPendingFeedback();
+  const pending = hasPendingFeedback();
+  $('submit').disabled = Boolean(state.endedAt) || !pending;
   const endPending = Boolean(state.endRequestedAt && !state.endedAt);
   $('end-pending').hidden = !endPending;
   $('review-lifecycle').hidden = endPending;
   $('review-lifecycle').textContent = state.endedAt
     ? 'Resume review'
-    : hasPendingFeedback()
+    : pending
       ? 'Send & End'
-      : 'End review';
+      : 'Approve';
+  $('review-lifecycle').classList.toggle('primary', !state.endedAt && !pending);
+  $('end-review').hidden = endPending || Boolean(state.endedAt) || pending;
 }
 function submit(end = false) {
   const message = $('agent-message').value.trim();

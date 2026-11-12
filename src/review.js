@@ -103,6 +103,7 @@ export async function openReview(options, dependencies = {}) {
         .filter((c) => c.deletedAt)
         .map((c) => ({ ...c, ...locate(c, current.get(c.documentId)) })),
       endedAt: state.endedAt,
+      approved: Boolean(state.approved),
       endRequestedAt: state.endRequestedAt,
       changes: sourceChanges(state),
       hasPreviousSource: Boolean(state.previousDocuments),
@@ -143,7 +144,7 @@ export async function openReview(options, dependencies = {}) {
       throw new Error(`${label} must contain 1–10,000 characters.`);
     return value.trim();
   };
-  const metadataActions = new Set(['end', 'resume', 'cancel-batch', 'edit-batch']);
+  const metadataActions = new Set(['end', 'approve', 'resume', 'cancel-batch', 'edit-batch']);
   const findComment = (state, id) => {
     const comment = state.comments.find((c) => c.id === id);
     if (!comment) throw new Error('Unknown comment.');
@@ -167,9 +168,19 @@ export async function openReview(options, dependencies = {}) {
         throw new Error('Deliver or cancel queued submissions before ending the review.');
       state.endedAt ||= now();
       delete state.endRequestedAt;
+      delete state.approved;
+    },
+    approve(state) {
+      if (pendingComments(state).length)
+        throw new Error('Submit or resolve pending comments before approving.');
+      if (outstanding(state))
+        throw new Error('Deliver or cancel queued submissions before approving.');
+      actions.end(state);
+      state.approved = true;
     },
     resume(state) {
       delete state.endedAt;
+      delete state.approved;
       delete state.endRequestedAt;
     },
     'cancel-batch'(state, input) {
@@ -384,7 +395,8 @@ export async function openReview(options, dependencies = {}) {
         handler(state, input);
         state.revision++;
         await store.commit(state);
-        const lifecycle = ['end', 'resume'].includes(input.action) || Boolean(state.endedAt);
+        const lifecycle =
+          ['end', 'approve', 'resume'].includes(input.action) || Boolean(state.endedAt);
         notify({
           type: lifecycle ? 'lifecycle' : 'activity',
           revision: state.revision,

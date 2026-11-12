@@ -87,13 +87,15 @@ button:disabled {
   opacity: 0.4;
 }
 #save,
-#submit {
+#submit,
+#review-lifecycle.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-on);
 }
 #save:hover,
-#submit:hover {
+#submit:hover,
+#review-lifecycle.primary:hover {
   background: var(--accent-hover);
 }
 :focus-visible {
@@ -422,6 +424,18 @@ textarea::placeholder {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin: var(--space-2) 0;
+}
+.submit-actions .text-action {
+  color: var(--muted);
+  background: none;
+  border-color: transparent;
+  padding-inline: var(--space-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.submit-actions .text-action:hover {
+  color: var(--fg);
+  background: none;
 }
 .receipt {
   margin: var(--space-3) 0;

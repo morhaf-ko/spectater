@@ -47,7 +47,7 @@ agent: spectater open add-dark-mode    → server starts in the background, brow
 you:   select text, comment, Submit     → feedback is saved and queued
 agent: spectater wait add-dark-mode     → receives the batch as JSON
 agent: spectater reply … --status working, edits Markdown, spectater reply … --message-file result.md
-you:   see the update and the reply; comment again or click End review
+you:   see the update and the reply; comment again, or click Approve when nothing is left
 ```
 
 Every agent command prints one JSON object with a `status` and a `next_step`, so the agent always knows what to do next:
@@ -56,13 +56,16 @@ Every agent command prints one JSON object with a `status` and a `next_step`, so
 | ------------------- | ---------------------------------------------- | --------- |
 | `batch`             | Feedback delivered in `batch`                  | 0         |
 | `timeout`           | No feedback within `--timeout` (default 540 s) | 0         |
-| `ended`             | You ended the review                           | 0         |
+| `approved`          | You approved the change as written             | 0         |
+| `ended`             | You ended the review without a decision        | 0         |
 | `error`             | The command failed; see `error`                | 1         |
 | `stopped`           | The review server is not running               | 3         |
 | `listener_active`   | Another `wait` is already listening            | 4         |
 | `listener_replaced` | Another `wait --takeover` replaced this one    | 5         |
 
 Until the agent replies to a batch, `wait` returns that batch again, so feedback is never lost if the agent is interrupted.
+
+`approved` tells the agent the artifacts are accepted as written and to continue with what you already asked for, such as implementing after the review; if you asked for nothing further, it asks you once. Approval never authorizes a merge or deployment. Agents that don't know `approved` follow its `next_step`.
 
 `open` adds an `access` object when the reviewer's browser is probably on another machine; see [Agents on another machine](#agents-on-another-machine). Other commands report `ready` or `reused` (`open`), `recorded` (`reply`), `refreshed` (`refresh`), `ended` (`end`), `stopping` or `not_running` (`stop`), and `stopped` (exit 3) when no server is running. Any command can return `error` (exit 1).
 
@@ -71,7 +74,7 @@ Until the agent replies to a batch, `wait` returns that batch again, so feedback
 - Select text in the rendered view or the Markdown source, then comment. Enter saves; Cmd/Ctrl+Enter saves and submits.
 - Write a message to the agent that is not tied to a selection.
 - Submit sends only new or changed comments. Until the agent picks a batch up you can edit or cancel it.
-- One button ends the review. It reads **Send & End** while comments or a message are pending: it submits them and ends the review once the agent has received the final batch. With nothing pending it reads **End review**, and after the review ends, **Resume review**.
+- One button ends the review. It reads **Send & End** while comments or a message are pending: it submits them and ends the review once the agent has received the final batch. With nothing pending it reads **Approve**: the agent receives `approved` and carries on. Next to it, **End without approving** ends the review without a decision (`ended`). After the review ends the button reads **Resume review**.
 - Comments on text that later changes are marked stale (with a suggested re-anchor) or orphaned; nothing is silently moved.
 - "What changed" diffs the latest source update against the previous one.
 - Edits appear as the agent saves them. When an agent's sandbox blocks file watching (Codex on macOS, for example), they appear when the agent replies.
