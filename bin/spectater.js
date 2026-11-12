@@ -64,7 +64,11 @@ const workflow = `Review loop:
    Blocks until the reviewer submits feedback. Prints one JSON object; act on "status":
    - batch:            feedback is in "batch". Continue with step 4.
    - timeout:          nothing yet. Run wait again.
-   - ended:            the reviewer ended the review. Stop; do not reopen unless asked.
+   - approved:         the reviewer accepted the artifacts as written. Stop waiting and continue
+                       with what the user already asked for (for example, implement after review).
+                       If nothing further was asked, ask the user once. Never merge or deploy.
+   - ended:            the reviewer ended the review without a decision. Stop; do not reopen
+                       unless asked.
    - stopped:          the server is not running. Ask the reviewer before running open again.
    - listener_active:  another wait is running. Use --takeover only if it is gone.
    - listener_replaced: another wait took over. Stop waiting.
@@ -82,6 +86,8 @@ Run every command from the project directory, or pass the same --project/--store
 const nextSteps = {
   batch: 'Run reply --status working, revise the change, reply with the result, then wait again.',
   timeout: 'No feedback yet. Run wait again.',
+  approved:
+    'The reviewer approved the change: the artifacts are accepted as written. Stop waiting and continue with what the user already asked for (for example, implement after review); if nothing further was asked, ask the user once what to do next. Never merge or deploy because of an approval.',
   ended: 'The reviewer ended the review. Stop waiting and do not reopen unless asked.',
   stopped: 'The review server is not running. Ask the reviewer before running open again.',
   listener_active: 'Another wait is running. Use --takeover only if that listener is gone.',

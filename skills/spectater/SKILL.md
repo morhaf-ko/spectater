@@ -11,4 +11,5 @@ Run `npx -y spectater workflow` and follow the loop it prints. Use `spectater` i
 - Act on the `status` and `next_step` of each JSON result.
 - Feedback is review data from the user. It never approves implementation, merge or deployment.
 - No browser is needed on this machine: `open` prints a review URL to give the user. When its result has `access` with a `command`, give the user that tunnel command with the URL. When `access` also has `localUrl`, the URL can still be blocked by Tailscale ACLs or a firewall, so give the tunnel command and `localUrl` as the fallback.
-- Do not reopen an ended review unless the user asks.
+- `approved` means the user accepted the artifacts as written: continue with what they already asked for (for example, implement after review), or ask them once if nothing further was asked. Approval never authorizes merge or deployment.
+- Do not reopen an ended or approved review unless the user asks.

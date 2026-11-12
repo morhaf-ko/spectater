@@ -117,6 +117,32 @@ test('a waiting agent receives ended, and stopped when the server closes', async
   server = null;
 });
 
+test('approve ends the review with approved after any claimed batch, and resume clears it', async (t) => {
+  const { review, agent } = await served(t);
+  const approve = () => review.mutate({ action: 'approve', revision: review.state.revision });
+  await comment(review, 'Unsubmitted.');
+  await assert.rejects(approve(), /Submit or resolve pending comments/);
+  await review.mutate({ action: 'submit', revision: review.state.revision });
+  await assert.rejects(approve(), /Deliver or cancel/);
+  assert.equal(review.state.endedAt, undefined);
+  const claimed = await agent('wait', { timeout: 0 });
+  await approve();
+  assert.ok(review.state.endedAt);
+  assert.ok(review.view().approvedAt);
+  assert.equal((await agent('wait', { timeout: 0 })).batch.id, claimed.batch.id);
+  await agent('reply', { status: 'done', body: 'Handled.' });
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'approved');
+  await agent('resume');
+  assert.equal(review.state.approvedAt, undefined);
+  const pending = agent('wait', { timeout: 5000 });
+  while (!(await agent('status')).listening) await tick();
+  await approve();
+  assert.equal((await pending).status, 'approved');
+  await agent('resume');
+  await agent('end');
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'ended');
+});
+
 test('Send & End ends the review only after the final batch is delivered', async (t) => {
   const { review, agent } = await served(t);
   await review.mutate({
@@ -246,6 +272,13 @@ test('CLI runs the full loop against a detached server addressed by change name'
     JSON.parse((await run(['open', 'example', '--no-open', '--reopen'])).stdout).status,
     'reused',
   );
+  view = await server.request('state');
+  await server.request('action', { action: 'approve', revision: view.revision });
+  const approved = JSON.parse((await run(['wait', 'example', '--timeout', '0'])).stdout);
+  assert.equal(approved.status, 'approved');
+  assert.match(approved.next_step, /accepted as written/);
+  assert.match(approved.next_step, /never merge or deploy/i);
+  assert.match((await run(['workflow'])).stdout, /- approved: /);
   await server.close();
   const stopped = await run(['wait', 'example', '--timeout', '0']).catch((error) => error);
   assert.equal(stopped.code, 3);
