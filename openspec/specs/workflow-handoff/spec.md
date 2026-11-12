@@ -8,11 +8,11 @@ Connect local OpenSpec review to the conversation already drafting a change with
 
 ### Requirement: Explicit review completion
 
-The system SHALL persist an ended review state and require explicit operator resumption before accepting further feedback. Ending MUST preserve saved history, refuse abandonment of queued or paused submissions, and return an ended result to waiting CLI listeners. It MUST NOT stop a model or imply approval. Already delivered work MAY post a result after review completion.
+The system SHALL persist an ended review state and require explicit operator resumption before accepting further feedback. Ending MUST preserve saved history, refuse abandonment of queued or paused submissions, and return an ended result to waiting CLI listeners, or approved after an approval. Ending without approving MUST NOT stop a model or imply approval. Already delivered work MAY post a result after review completion.
 
 #### Scenario: End a review
 
-- **WHEN** the operator ends a review with no undelivered submissions
+- **WHEN** the operator ends a review without approving and with no undelivered submissions
 - **THEN** feedback mutations become read-only, saved data remains readable and waiting agents receive ended guidance to stop listening without reopening uninvited
 
 #### Scenario: Outstanding feedback
@@ -189,7 +189,7 @@ The system SHALL let the reviewer copy or download a batch and let the agent rea
 
 ### Requirement: Approval separation
 
-The system MUST NOT interpret comments, submission, artifact status or task completion as implementation, merge or production approval. It SHALL leave revision execution and authorization to the existing operator/conversation workflow.
+The system MUST NOT interpret comments, submission, ending a review, artifact status or task completion as implementation, merge or production approval. An explicit Approve accepts the artifacts as written, so the conversation MAY continue with work the user already requested; it MUST NOT authorize merge or deployment. The system SHALL leave execution and authorization to the existing operator/conversation workflow.
 
 #### Scenario: Planning complete
 
@@ -232,6 +232,11 @@ The system SHALL print exactly one JSON object on stdout for each agent command,
 
 - **WHEN** wait returns because the reviewer ended the review
 - **THEN** stdout holds `status` ended with a next step to stop waiting and not reopen uninvited
+
+#### Scenario: Approved review
+
+- **WHEN** wait returns because the reviewer approved the review
+- **THEN** stdout holds `status` approved, exit code 0, and a next step that accepts the artifacts as written without authorizing merge or deployment
 
 ### Requirement: Single feedback listener
 
@@ -437,3 +442,27 @@ When `HERDR_ENV=1` and `SPECTATER_HERDR_CHIME=1` are set in the environment that
 
 - **WHEN** either variable is unset or not `1`
 - **THEN** no Herdr command runs
+
+### Requirement: Review approval
+
+The system SHALL let the reviewer approve a review when no comments are unsubmitted and no submission is queued or paused. Approval MUST end the review, record that it was approved, and make waiting listeners receive `approved` once any claimed batch is answered. Resume and ending without a decision MUST clear the approval.
+
+#### Scenario: Approve while an agent waits
+
+- **WHEN** the reviewer approves while an agent waits
+- **THEN** the wait returns approved with a next step to continue with what the user already asked for, ask the user once if nothing was asked, and never merge or deploy
+
+#### Scenario: Approve with pending feedback
+
+- **WHEN** an approval is requested while comments are unsubmitted or a submission is queued or paused
+- **THEN** it is refused and the review stays active with its feedback unchanged
+
+#### Scenario: End after approval
+
+- **WHEN** an approved review is ended without a decision, for example with `spectater end`
+- **THEN** the approval is cleared and the next wait returns ended
+
+#### Scenario: Resume after approval
+
+- **WHEN** the operator resumes an approved review and later ends it without a decision
+- **THEN** the review is active again and the next wait after ending returns ended
