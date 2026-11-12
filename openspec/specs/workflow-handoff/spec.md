@@ -352,6 +352,25 @@ For a remote session or an applicable public URL, `open` SHALL add an `access` o
 - **WHEN** open runs on a desktop session with no SSH variables and no public URL
 - **THEN** the result has no `access` object
 
+### Requirement: Public URL tunnel fallback
+
+In the public mode of a remote session where an SSH tunnel to this host can work, `access` SHALL also carry the tunnel command and the loopback review URL, and the next step MUST tell the agent to give the reviewer both as a fallback for a URL that Tailscale ACLs or a firewall may block. The system MUST NOT probe whether the public URL is reachable.
+
+#### Scenario: Public URL blocked for the reviewer
+
+- **WHEN** open runs in a remote SSH session and prints a tailnet or configured public URL
+- **THEN** `access` keeps the public mode and also has the tunnel command for the port in use and the loopback review URL, and the next step tells the agent to give the reviewer both as a fallback
+
+#### Scenario: Public URL in a local session
+
+- **WHEN** open runs on a desktop session and prints a tailnet or configured public URL
+- **THEN** `access` has the public mode and port only
+
+#### Scenario: Codespace URL
+
+- **WHEN** open runs in a codespace, with or without `publicUrl`
+- **THEN** `access` has the public mode and port only
+
 ### Requirement: Public review URL
 
 The system SHALL use a configured public URL when the server holds the config's `port`, or a codespace's forwarded-port URL for the port in use, for the printed review URL, and accept that host and origin. Agent commands MUST keep using loopback.
