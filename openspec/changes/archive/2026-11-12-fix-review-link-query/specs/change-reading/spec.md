@@ -2,7 +2,7 @@
 
 ### Requirement: Bounded local access
 
-The system SHALL serve only the selected manifest on loopback and, when enabled, the tailnet address and authorize review requests with a per-process capability. It MUST reject unaccepted hosts, foreign mutation origins, unauthorized requests, oversized input and filesystem paths outside the selected change. It MUST serve GET requests for the review route and its static assets whatever the browser's `Sec-Fetch-Site` reports, and MUST reject every other request a browser marks cross-site. It MUST serve a GET of the review route whatever query string it carries, and MUST answer every other request with a query string as an unknown route.
+The system SHALL serve only the selected manifest on loopback and, when enabled, the tailnet address and authorize review requests with a per-process capability. It MUST reject unaccepted hosts, foreign mutation origins, unauthorized requests, oversized input and paths outside the selected change. It MUST serve GETs of the review route, with any query string, and its assets whatever `Sec-Fetch-Site` says, reject other cross-site requests and answer other queried requests as unknown routes.
 
 #### Scenario: Cross-site write
 
