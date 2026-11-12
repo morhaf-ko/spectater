@@ -151,7 +151,7 @@ No configuration is required. An optional `~/.config/spectater/config.json` (or 
 | `SPECTATER_STATE_DIR`    | Where reviews are stored. Default: `~/Library/Application Support/SpecTater` on macOS, `$XDG_STATE_HOME/spectater` on Linux, `%LOCALAPPDATA%\SpecTater` on Windows, where it must stay inside your user profile. |
 | `SPECTATER_REMOTE`       | `1` or `0` forces remote or local behaviour when detection is wrong, for example `1` on a macOS host reached over SSH from tmux.                                                                                 |
 | `SPECTATER_PORT`         | Preferred server port; overrides `port`. Default: random locally, 47420 on a remote session. A `publicUrl` stays tied to `port`.                                                                                 |
-| `SPECTATER_IDLE_TIMEOUT` | Seconds a server stays up with no reader page open and no `wait` running, then stops itself; its URL stops working and the next `open` prints a new one. Default 1800; `0` disables.                             |
+| `SPECTATER_IDLE_TIMEOUT` | Seconds a server stays up with no reader page connected and no `wait` running, then stops itself; its URL stops working and the next `open` prints a new one. Default 1800; `0` disables.                        |
 | `SPECTATER_TAILSCALE`    | `0` stops the server from listening on the tailnet address.                                                                                                                                                      |
 | `SPECTATER_HERDR_CHIME`  | `1` inside [Herdr](https://herdr.dev) shows a Herdr notification with a chime when the agent starts waiting for your feedback, once per batch.                                                                   |
 

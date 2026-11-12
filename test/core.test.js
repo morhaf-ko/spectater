@@ -481,7 +481,12 @@ test('cross-site navigation loads the reader; cross-site API requests and writes
   assert.equal(await request(`${server.origin}${server.route}`, navigate), 200, 'review route');
   for (const asset of ['/app.js', '/theme.js', '/style.css', '/favicon.svg'])
     assert.equal(await request(`${server.origin}${asset}`, crossSite), 200, asset);
-  for (const path of ['/state', '/events'])
+  for (const path of [
+    '/state',
+    '/events',
+    `/changes/${'a'.repeat(24)}`,
+    `/batch/${'a'.repeat(36)}`,
+  ])
     assert.equal(
       await request(`${server.origin}${server.route}${path}`, {
         ...crossSite,
@@ -499,6 +504,15 @@ test('cross-site navigation loads the reader; cross-site API requests and writes
     ),
     403,
     'browser write',
+  );
+  assert.equal(
+    await request(
+      `${server.origin}${server.route}/refresh`,
+      { ...json, Origin: url.origin },
+      'POST',
+    ),
+    403,
+    'browser refresh',
   );
   assert.equal(await request(`${server.origin}/agent/status`, json, 'POST'), 403, 'agent route');
   assert.equal(r.state.revision, revision);
