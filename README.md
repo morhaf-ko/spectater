@@ -113,7 +113,7 @@ SpecTater treats the session as remote when the agent runs over SSH (from macOS,
 
 Without Tailscale the server listens on `127.0.0.1` only, and you reach it through a forward or a proxy you control:
 
-- **SSH.** The server prefers port 47420 (or `port` / `SPECTATER_PORT`) and moves to the next free port in 47420–47429 when another review holds it. `open` prints the tunnel command in `access`, for example `ssh -N -L 47420:127.0.0.1:47420 forge`. To forward every review on that port, add `LocalForward 127.0.0.1:47420 127.0.0.1:47420` to the host's entry in your local `~/.ssh/config`.
+- **SSH.** The server prefers port 47420 (or `port` / `SPECTATER_PORT`) and moves to the next free port in 47420–47429 when another review holds it. `open` prints the tunnel command in `access`, for example `ssh -N -L 47420:127.0.0.1:47420 forge`. To forward every review on that port, add `LocalForward 127.0.0.1:47420 127.0.0.1:47420` to the host's entry in your local `~/.ssh/config`; the forward then also serves as the fallback for a blocked tailnet or proxy URL.
 - **VS Code Remote and devcontainers.** `open` uses the editor's `$BROWSER` helper, which forwards the port and opens the review on your machine. Forwarded `localhost` addresses and remapped local ports are accepted.
 - **Other containers.** `docker run -p` cannot reach a server bound to the container's loopback. Forward the port with your editor, or run the container with `--network host`. `open` reports `access.mode: forward`.
 - **WSL.** Treated as local: Windows browsers reach WSL2 loopback directly. If `xdg-open` is missing, the review opens in the Windows default browser.
@@ -121,11 +121,13 @@ Without Tailscale the server listens on `127.0.0.1` only, and you reach it throu
 - **Codespaces.** The review URL uses the codespace's forwarded-port domain. Keep the port private.
 - **`tailscale serve` or another reverse proxy.** Use this for HTTPS or a fixed port. Works with proxies that serve the review at the root of a hostname (Tailscale Serve, Cloudflare Tunnel, Gitpod or Coder subdomain apps); proxies that add a path prefix, such as code-server's `/absproxy/<port>/`, are not supported. Set `port` and `publicUrl`, and run the proxy yourself once, for example `tailscale serve --bg --https=47420 http://127.0.0.1:47420` with `"publicUrl": "https://<machine>.<tailnet>.ts.net:47420"`. Review URLs then open on any device in your tailnet. The public URL applies only while the server holds that port; a review on a fallback port gets a tunnel command instead.
 
-| `access.mode` | Meaning                                                                         |
-| ------------- | ------------------------------------------------------------------------------- |
-| `tunnel`      | Run `access.command` on the machine with the browser, then open the URL.        |
-| `forward`     | Forward `access.port` from the container to the machine with the browser.       |
-| `public`      | The URL uses your tailnet, configured proxy or the codespace's port forwarding. |
+SpecTater can't see Tailscale ACLs or firewalls, so a tailnet or proxy URL may hang on the reviewer's machine, for example when the tailnet grants it only `tcp:22`. In a remote session outside a container or codespace, the `public` access object therefore also carries `command`, the same SSH tunnel command as `tunnel` mode, and `localUrl`, the loopback review URL. Agents give the reviewer both as the fallback: run `access.command`, then open `access.localUrl`.
+
+| `access.mode` | Meaning                                                                                                                                                                     |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tunnel`      | Run `access.command` on the machine with the browser, then open the URL.                                                                                                    |
+| `forward`     | Forward `access.port` from the container to the machine with the browser.                                                                                                   |
+| `public`      | The URL uses your tailnet, configured proxy or the codespace's port forwarding. With `command` and `localUrl`, run the command and open `localUrl` if the URL doesn't load. |
 
 ## Configuration
 
