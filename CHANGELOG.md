@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/morhaf-ko/spectater/compare/spectater-v0.8.1...spectater-v0.8.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* open review links that carry a query string ([#40](https://github.com/morhaf-ko/spectater/issues/40)) ([200416f](https://github.com/morhaf-ko/spectater/commit/200416f5166976f61f07062b97dbe83d47733eb2))
+
 ## [0.8.1](https://github.com/morhaf-ko/spectater/compare/spectater-v0.8.0...spectater-v0.8.1) (2026-11-12)
 
 
