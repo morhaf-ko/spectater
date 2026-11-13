@@ -29,6 +29,34 @@ Without the skill, tell the agent: "Run `npx -y spectater workflow` and follow i
 
 Requirements: Node 22.12 or newer, the [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) 1.15 or newer (`npm install -g @fission-ai/openspec`), and macOS, Linux or Windows (including WSL). Git is optional; it powers the "What changed" diff.
 
+### Install the CLI
+
+For a persistent `spectater` command, choose one of these methods. The Node and
+OpenSpec requirements above apply to both.
+
+With npm:
+
+```sh
+npm install -g spectater@latest
+spectater --version
+```
+
+With [mise](https://mise.jdx.dev) on macOS, Linux or WSL, using its npm backend:
+
+```sh
+mise use -g npm:spectater@latest
+spectater --version
+```
+
+Activate mise in your shell as described in its
+[setup guide](https://mise.jdx.dev/getting-started.html). To update, rerun the npm
+install command or run `mise upgrade npm:spectater`. A mise `latest` setting uses
+the newest installed version; it does not download updates on every invocation.
+
+The CLI installation is separate from the agent skill. Install the skill with the
+quick-start command above, and see [Session hooks](#session-hooks-optional) to make
+new agent sessions aware of open reviews.
+
 ### Review every change automatically
 
 To have agents open a review whenever they finish planning a change, add this to your project's `openspec/config.yaml`. OpenSpec passes `context` to the agent whenever it drafts an artifact (and during apply and archive), in every agent it supports. The review opens once planning is complete, not after each artifact:
@@ -99,10 +127,9 @@ Run commands from the project directory, or pass `--project <dir>`. Use `--store
 
 ## Session hooks (optional)
 
-To have new agent sessions see reviews that are already open, install SpecTater globally and add the hooks:
+To have new agent sessions see reviews that are already open, install the CLI using [npm or mise](#install-the-cli), then add the hooks:
 
 ```sh
-npm install -g spectater
 spectater setup hooks
 ```
 
