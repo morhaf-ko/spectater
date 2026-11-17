@@ -455,3 +455,34 @@ test('remote open reports tunnel access on a stable port; a public URL is printe
     'timeout',
   );
 });
+
+test('refresh and reply show revised source on an ended review without resuming it', async (t) => {
+  const { f, review, agent } = await served(t);
+  await submit(review, 'Revise this.');
+  await agent('wait', { timeout: 0 });
+  await review.mutate({ action: 'end', revision: review.state.revision });
+  const endedAt = review.state.endedAt;
+  await writeFile(f.file, '# Fixture proposal\n\nRefreshed after the end.\n');
+  assert.equal((await agent('refresh')).status, 'refreshed');
+  assert.match(review.view().documents[0].source, /Refreshed after the end/);
+  await writeFile(f.file, '# Fixture proposal\n\nReplied after the end.\n');
+  const reply = await agent('reply', { status: 'done', body: 'Revised.' });
+  assert.equal(reply.status, 'recorded');
+  assert.equal(reply.sourceError, undefined);
+  assert.match(review.view().documents[0].source, /Replied after the end/);
+  assert.equal(review.state.endedAt, endedAt);
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'ended');
+  await assert.rejects(comment(review), /Review ended/);
+});
+
+test('reply after approval shows revised source and keeps the approval', async (t) => {
+  const { f, review, agent } = await served(t);
+  await submit(review, 'Revise this.');
+  await agent('wait', { timeout: 0 });
+  await review.mutate({ action: 'approve', revision: review.state.revision });
+  await writeFile(f.file, '# Fixture proposal\n\nRevised after approval.\n');
+  await agent('reply', { status: 'done', body: 'Revised.' });
+  assert.match(review.view().documents[0].source, /Revised after approval/);
+  assert.equal(review.view().approved, true);
+  assert.equal((await agent('wait', { timeout: 0 })).status, 'approved');
+});

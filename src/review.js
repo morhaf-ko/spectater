@@ -302,8 +302,6 @@ export async function openReview(options, dependencies = {}) {
     view,
     refresh: () =>
       serial(async () => {
-        if (store.state.endedAt)
-          throw new Error('Review ended. Resume explicitly to refresh source.');
         await refresh();
         return view();
       }),

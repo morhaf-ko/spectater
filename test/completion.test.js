@@ -49,8 +49,9 @@ test('ending preserves feedback, refuses queued abandonment and ends listeners u
     mutate({ action: 'edit', id: review.state.comments[0].id, body: 'Rejected.' }),
     /Review ended/,
   );
-  await assert.rejects(review.refresh(), /Resume explicitly/);
   const endedAt = review.state.endedAt;
+  await review.refresh();
+  assert.equal(review.state.endedAt, endedAt, 'refresh never resumes');
   await server.close();
   server = undefined;
   review = await openReview(f.options, { directory: f.stateDir });
