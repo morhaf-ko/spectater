@@ -218,10 +218,9 @@ export async function startServer(review, options = {}) {
     // re-reads the change first and reports a failed re-read instead of hiding it.
     reply: async (input) => {
       let sourceError;
-      if (!review.state.endedAt)
-        await review.refresh().catch((error) => {
-          sourceError = error.message;
-        });
+      await review.refresh().catch((error) => {
+        sourceError = error.message;
+      });
       const recorded = await review.recordActivity(input.batch, input);
       return { status: 'recorded', ...recorded, ...(sourceError && { sourceError }) };
     },

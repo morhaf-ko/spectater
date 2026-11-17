@@ -116,7 +116,7 @@ Until the agent replies to a batch, `wait` returns that batch again, so feedback
 | `spectater wait <change>`                 | Wait for feedback. `--timeout <seconds>`, `--takeover`, `--format markdown`.                                                                                   |
 | `spectater reply <change>`                | `--status working`, or post a result with `--message` / `--message-file`. `--batch <n>` targets an earlier batch.                                              |
 | `spectater feedback <change> --batch <n>` | Print a submitted batch without recording delivery.                                                                                                            |
-| `spectater refresh <change>`              | Re-read the change from disk.                                                                                                                                  |
+| `spectater refresh <change>`              | Re-read the change from disk, also after the review ended; `reply` re-reads it too.                                                                            |
 | `spectater end <change>`                  | End the review.                                                                                                                                                |
 | `spectater stop <change>`                 | Stop the server. Saved feedback is kept.                                                                                                                       |
 | `spectater workflow`                      | Print the agent review loop.                                                                                                                                   |
