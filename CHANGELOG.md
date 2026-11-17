@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.3](https://github.com/morhaf-ko/spectater/compare/spectater-v0.8.2...spectater-v0.8.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* refresh and reply on an ended review ([#46](https://github.com/morhaf-ko/spectater/issues/46)) ([b09844b](https://github.com/morhaf-ko/spectater/commit/b09844b506378e74ec1a06b19fbcb3418fe991b5))
+
 ## [0.8.2](https://github.com/morhaf-ko/spectater/compare/spectater-v0.8.1...spectater-v0.8.2) (2026-11-12)
 
 
