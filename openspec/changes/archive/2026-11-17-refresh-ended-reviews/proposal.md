@@ -13,7 +13,7 @@ After the operator sends a final batch with Send & End, the agent revises the ch
 
 ### Modified capabilities
 
-- `workflow-handoff`: Explicit review completion lets the agent show revised source and its reply after the review ended.
+- `workflow-handoff`: A new requirement, Revision after completion, lets the agent show revised source and its reply after the review ended or was approved.
 
 ## Impact
 
